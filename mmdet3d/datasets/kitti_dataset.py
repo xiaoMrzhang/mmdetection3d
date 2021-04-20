@@ -472,6 +472,7 @@ class KittiDataset(Custom3DDataset):
             if not pklfile_prefix.endswith(('.pkl', '.pickle')):
                 out = f'{pklfile_prefix}.pkl'
             mmcv.dump(det_annos, out)
+            # mmcv.dump(det_annos, "work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/result_kitti.pkl")
             print(f'Result is saved to {out}.')
 
         return det_annos

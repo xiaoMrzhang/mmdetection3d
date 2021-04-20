@@ -1,0 +1,22 @@
+cmd
+
+- data_prep
+https://github.com/open-mmlab/mmdetection3d/blob/master/docs/data_preparation.md
+For KITTI
+mkdir ./data/kitti/ && mkdir ./data/kitti/ImageSets
+
+# Download data split
+wget -c  https://raw.githubusercontent.com/traveller59/second.pytorch/master/second/data/ImageSets/test.txt --no-check-certificate --content-disposition -O ./data/kitti/ImageSets/test.txt
+wget -c  https://raw.githubusercontent.com/traveller59/second.pytorch/master/second/data/ImageSets/train.txt --no-check-certificate --content-disposition -O ./data/kitti/ImageSets/train.txt
+wget -c  https://raw.githubusercontent.com/traveller59/second.pytorch/master/second/data/ImageSets/val.txt --no-check-certificate --content-disposition -O ./data/kitti/ImageSets/val.txt
+wget -c  https://raw.githubusercontent.com/traveller59/second.pytorch/master/second/data/ImageSets/trainval.txt --no-check-certificate --content-disposition -O ./data/kitti/ImageSets/trainval.txt
+
+python tools/create_data.py kitti --root-path ./data/kitti --out-dir ./data/kitti --extra-tag kitti
+
+
+- train
+python tools/train.py configs/pointpillars/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class.py --gpu-ids 0
+
+
+--eval
+python tools/test.py configs/pointpillars/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class.py work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/latest.pth  --out work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/result.pkl --eval mAP

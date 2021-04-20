@@ -115,7 +115,7 @@ class Waymo2KITTI(object):
 
             self.save_image(frame, file_idx, frame_idx)
             self.save_calib(frame, file_idx, frame_idx)
-            self.save_lidar(frame, file_idx, frame_idx)
+            # self.save_lidar(frame, file_idx, frame_idx)
             self.save_pose(frame, file_idx, frame_idx)
 
             if not self.test_mode:
@@ -134,6 +134,9 @@ class Waymo2KITTI(object):
             frame_idx (int): Current frame index.
         """
         for img in frame.images:
+            # only save front camera images
+            if img.name != 1:
+                continue
             img_path = f'{self.image_save_dir}{str(img.name - 1)}/' + \
                 f'{self.prefix}{str(file_idx).zfill(3)}' + \
                 f'{str(frame_idx).zfill(3)}.png'
