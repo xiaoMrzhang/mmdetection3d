@@ -14,8 +14,8 @@ model = dict(
         voxel_size=voxel_size,
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1]),
     middle_encoder=dict(
-        # type='PointPillarsScatter', in_channels=64, output_shape=[496, 432]),
-        type='PointPillarsScatter', in_channels=64, output_shape=[512, 512]),
+        type='PointPillarsScatter', in_channels=64, output_shape=[496, 432]),
+        # type='PointPillarsScatter', in_channels=64, output_shape=[512, 512]),
     backbone=dict(
         type='SECOND',
         in_channels=64,
@@ -52,7 +52,7 @@ model = dict(
             voxel_size=voxel_size[:2],
             # code size 7 or 9
             code_size=7,),
-        seperate_head=dict(
+        separate_head=dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3),
         loss_cls=dict(type='GaussianFocalLoss', reduction='mean'),
         loss_bbox=dict(type='L1Loss', reduction='mean', loss_weight=0.25),
@@ -85,7 +85,7 @@ train_cfg = dict(
     allowed_border=0,
     pos_weight=-1,
     debug=False,
-    grid_size=[512, 512, 1],
+    grid_size=[432, 496, 1],
     voxel_size=voxel_size,
     out_size_factor=4,
     dense_reg=1,

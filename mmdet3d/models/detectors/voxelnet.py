@@ -41,7 +41,11 @@ class VoxelNet(SingleStage3DDetector):
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        x = self.backbone(x)
+        # x = self.backbone(x)
+        x = self.backbone(x, voxel_features, coors)
+        # voxel_context = self.cfa(voxel_features, coors) 这部分写到backbone里面？
+
+        # x = torch.cat([x, voxel_context], dim=1) 这部分写到neck里面？
         if self.with_neck:
             x = self.neck(x)
         return x
@@ -88,29 +92,29 @@ class VoxelNet(SingleStage3DDetector):
         """
         x = self.extract_feat(points, img_metas)
         outs = self.bbox_head(x)
-        # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        # losses = self.bbox_head.loss(
-        #     *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
-        losses = self.bbox_head.loss(*loss_inputs)
+        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+        losses = self.bbox_head.loss(
+            *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
+        # losses = self.bbox_head.loss(*loss_inputs)
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function without augmentaiton."""
         x = self.extract_feat(points, img_metas)
         outs = self.bbox_head(x)
-        # bbox_list = self.bbox_head.get_bboxes(
-        #     *outs, img_metas, rescale=rescale)
-        # bbox_results = [
-        #     bbox3d2result(bboxes, scores, labels)
-        #     for bboxes, scores, labels in bbox_list
-        # ]
         bbox_list = self.bbox_head.get_bboxes(
-            outs, img_metas, rescale=rescale)
+            *outs, img_metas, rescale=rescale)
         bbox_results = [
             bbox3d2result(bboxes, scores, labels)
             for bboxes, scores, labels in bbox_list
         ]
+        # bbox_list = self.bbox_head.get_bboxes(
+        #     outs, img_metas, rescale=rescale)
+        # bbox_results = [
+        #     bbox3d2result(bboxes, scores, labels)
+        #     for bboxes, scores, labels in bbox_list
+        # ]
         return bbox_results
 
     def aug_test(self, points, img_metas, imgs=None, rescale=False):
