@@ -104,11 +104,11 @@ class SECOND_FSA(nn.Module):
         self.blocks = nn.ModuleList(blocks)
 
         self.nx, self.ny, self.nz = grid_size
-        self.in_channels = in_channels
+        self.out_channel = in_dims
         self.position_enc = PositionalEncoding(in_dims, height=grid_size[1], width=grid_size[0])
         self.layer_norm = nn.LayerNorm(in_dims, eps=1e-6)
-        self.self_attn1 = SA_block(inplanes=in_dims, planes=in_dims)
-        self.self_attn2 = SA_block(inplanes=in_dims, planes=in_dims)
+        self.self_attn1 = SA_block(inplanes=in_channels, planes=in_dims)
+        self.self_attn2 = SA_block(inplanes=in_channels, planes=in_dims)
 
     def init_weights(self, pretrained=None):
         """Initialize weights of the 2D backbone."""
@@ -155,21 +155,25 @@ class SECOND_FSA(nn.Module):
         Returns:
             tuple[torch.Tensor]: Multi-scale features.
         """
-        outs = []
+        spatial_features = []
         for i in range(len(self.blocks)):
             x = self.blocks[i](x)
-            outs.append(x)
+            spatial_features.append(x)
 
         # get position encoding for pillars
         pillar_pos_enc = self.position_enc(pillar_features, coors)
         pillar_pos_enc = self.layer_norm(pillar_pos_enc)
 
         # get context for every pillar
-        context_features = self.add_context_to_pillars(pillar_pos_enc, coors, self.nx, self.ny, self.nz, self.in_channels)
+        context_features = self.add_context_to_pillars(pillar_pos_enc, coors, self.nx, self.ny, self.nz, self.out_channel)
 
         # generate down-sampled SA-features to concatenate with Conv in decoder_2d module
         pillar_context = [F.interpolate(context_features, scale_factor=0.5, mode='bilinear'),
                           F.interpolate(context_features, scale_factor=0.25, mode='bilinear'),
                           F.interpolate(context_features, scale_factor=0.125, mode='bilinear')]
 
+        outs = []
+        for i in range(len(self.blocks)):
+            out = torch.cat([spatial_features[i], pillar_context[i]], dim=1)
+            outs.append(out)
         return tuple(outs)
