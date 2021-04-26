@@ -72,7 +72,8 @@ data = dict(
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.001
+# lr = 0.001
+lr = 0.00025
 optimizer = dict(lr=lr)
 # max_norm=35 is slightly better than 10 for PointPillars in the earlier
 # development of the codebase thus we keep the setting. But we does not

@@ -104,11 +104,11 @@ class SECOND_FSA(nn.Module):
         self.blocks = nn.ModuleList(blocks)
 
         self.nx, self.ny, self.nz = grid_size
-        self.out_channel = in_dims
+        self.out_channel = in_channels
         self.position_enc = PositionalEncoding(in_dims, height=grid_size[1], width=grid_size[0])
         self.layer_norm = nn.LayerNorm(in_dims, eps=1e-6)
-        self.self_attn1 = SA_block(inplanes=in_channels, planes=in_dims)
-        self.self_attn2 = SA_block(inplanes=in_channels, planes=in_dims)
+        self.self_attn1 = SA_block(inplanes=in_dims, planes=in_dims)
+        self.self_attn2 = SA_block(inplanes=in_dims, planes=in_dims)
 
     def init_weights(self, pretrained=None):
         """Initialize weights of the 2D backbone."""
@@ -177,3 +177,8 @@ class SECOND_FSA(nn.Module):
             out = torch.cat([spatial_features[i], pillar_context[i]], dim=1)
             outs.append(out)
         return tuple(outs)
+
+        # spatial_features = [torch.cat([spatial_features[0], F.interpolate(context_features, scale_factor=0.5, mode='bilinear')], dim=1),
+        #                     torch.cat([spatial_features[1], F.interpolate(context_features, scale_factor=0.25, mode='bilinear')], dim=1),
+        #                     torch.cat([spatial_features[2], F.interpolate(context_features, scale_factor=0.125, mode='bilinear')], dim=1),]
+        # return tuple(spatial_features)

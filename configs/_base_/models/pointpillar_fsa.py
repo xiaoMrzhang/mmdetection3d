@@ -17,6 +17,7 @@ model = dict(
         type='PointPillarsScatter', in_channels=64, output_shape=[496, 432]),
     backbone=dict(
         type='SECOND_FSA',
+        # in_channels must equal with in_dims because attention op
         in_channels=64,
         layer_nums=[3, 5, 5],
         layer_strides=[2, 2, 2],
@@ -25,7 +26,7 @@ model = dict(
     neck=dict(
         type='SECONDFPN',
         # in_channels=[64, 64, 64],
-        in_channels=[128, 128, 128],
+        in_channels=[64+64, 64+64, 64+64],
         upsample_strides=[1, 2, 4],
         out_channels=[128, 128, 128]),
     bbox_head=dict(
