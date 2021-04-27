@@ -1,5 +1,7 @@
 import mmcv
 import numpy as np
+import pickle
+import os
 
 from mmdet3d.core.points import BasePoints, get_points_type
 from mmdet.datasets.builder import PIPELINES
@@ -438,6 +440,43 @@ class LoadPointsFromFile(object):
         repr_str += f'use_dim={self.use_dim})'
         return repr_str
 
+
+@PIPELINES.register_module()
+class LoadBevSegFromFile(object):
+    """Load Bev segimage from file
+
+    Args:
+        object ([type]): [description]
+
+    """
+    def __init__(self,
+                 file_root_path=None):
+        self.root_path = file_root_path
+    
+    def _load_image(self, image_path):
+        # seg_img = mmcv.imread(image_path)
+        with open(image_path, 'rb') as f:
+            seg_img = pickle.load(f)
+        seg_img = seg_img['pillar_map_if_in_bboxes'].view(432, 432).numpy()
+        seg_img = mmcv.imresize(seg_img, (216, 248), interpolation='nearest')
+        return seg_img
+    
+    def __call__(self, results):
+        if self.root_path is not None:
+            sample_idx = results['mask_path'].split('/')[-1]
+            image_path = os.path.join(self.root_path, sample_idx)
+        else:
+            image_path = results['mask_path']
+        
+        seg_img = self._load_image(image_path)
+        results['bev_seg_image'] = seg_img
+        return results
+
+    def __repr__(self):
+        """str: Return a string that describes the module."""
+        repr_str = self.__class__.__name__ + '('
+        repr_str += f'file_root_path={self.file_root_path},'
+        return repr_str
 
 @PIPELINES.register_module()
 class LoadAnnotations3D(LoadAnnotations):

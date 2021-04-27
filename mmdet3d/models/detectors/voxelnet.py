@@ -35,19 +35,20 @@ class VoxelNet(SingleStage3DDetector):
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
 
-    def extract_feat(self, points, img_metas):
+    def extract_feat(self, points, img_metas, bev_seg_image=None):
         """Extract features from points."""
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        # x = self.backbone(x)
-        x = self.backbone(x, voxel_features, coors)
+        x = self.backbone(x)
+        
+        # x = self.backbone(x, voxel_features, coors)
         # voxel_context = self.cfa(voxel_features, coors) 这部分写到backbone里面？
 
         # x = torch.cat([x, voxel_context], dim=1) 这部分写到neck里面？
         if self.with_neck:
-            x = self.neck(x)
+            x = self.neck(x, bev_seg_image)
         return x
 
     @torch.no_grad()
@@ -74,6 +75,7 @@ class VoxelNet(SingleStage3DDetector):
                       img_metas,
                       gt_bboxes_3d,
                       gt_labels_3d,
+                      bev_seg_image=None,
                       gt_bboxes_ignore=None):
         """Training forward function.
 
@@ -90,7 +92,7 @@ class VoxelNet(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        x = self.extract_feat(points, img_metas)
+        x = self.extract_feat(points, img_metas, bev_seg_image)
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
@@ -99,9 +101,9 @@ class VoxelNet(SingleStage3DDetector):
         # losses = self.bbox_head.loss(*loss_inputs)
         return losses
 
-    def simple_test(self, points, img_metas, imgs=None, rescale=False):
+    def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None, rescale=False):
         """Test function without augmentaiton."""
-        x = self.extract_feat(points, img_metas)
+        x = self.extract_feat(points, img_metas, bev_seg_image)
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)

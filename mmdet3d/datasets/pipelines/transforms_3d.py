@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+import mmcv
 from mmcv import is_tuple_of
 from mmcv.utils import build_from_cfg
 
@@ -76,6 +78,11 @@ class RandomFlip3D(RandomFlip):
             w = input_dict['img_shape'][1]
             input_dict['centers2d'][..., 0] = \
                 w - input_dict['centers2d'][..., 0]
+        if 'bev_seg_image' in input_dict:
+            assert input_dict['bev_seg_image'] is not None, \
+                'bev seg image is None, please check segimage path'
+            seg_img = mmcv.imflip(input_dict['bev_seg_image'], direction)
+            input_dict['bev_seg_image'] = seg_img
 
     def __call__(self, input_dict):
         """Call function to flip points, values in the ``bbox3d_fields`` and \
@@ -346,6 +353,8 @@ class GlobalRotScaleTrans(object):
         input_dict['pcd_trans'] = trans_factor
         for key in input_dict['bbox3d_fields']:
             input_dict[key].translate(trans_factor)
+        # if 'bev_seg_image' in input_dict.keys():
+        #     input_dict['bev_seg_image'] = input_dict['bev_seg_image'] + rot_mat_T.numpy()
 
     def _rot_bbox_points(self, input_dict):
         """Private function to rotate bounding boxes and points.
@@ -371,6 +380,11 @@ class GlobalRotScaleTrans(object):
                 input_dict['pcd_rotation'] = rot_mat_T
         # input_dict['points_instance'].rotate(noise_rotation)
 
+        if 'bev_seg_image' in input_dict.keys() and 'pcd_rotation' in input_dict:
+            bev_seg_image = input_dict['bev_seg_image']
+            bev_seg_image = cv2.warpAffine(bev_seg_image, rot_mat_T[:2, :].numpy(),
+                            (bev_seg_image.shape[1], bev_seg_image.shape[0]), flags=cv2.INTER_NEAREST)
+            input_dict['bev_seg_image'] = bev_seg_image
     def _scale_bbox_points(self, input_dict):
         """Private function to scale bounding boxes and points.
 
@@ -392,6 +406,15 @@ class GlobalRotScaleTrans(object):
         for key in input_dict['bbox3d_fields']:
             input_dict[key].scale(scale)
 
+        if 'bev_seg_image' in input_dict.keys():
+            bev_seg_image = mmcv.imrescale(input_dict['bev_seg_image'],
+                                                         scale, interpolation='nearest')
+            if scale > 1:
+                bev_seg_image = bev_seg_image[:input_dict['bev_seg_image'].shape[0],
+                                              :input_dict['bev_seg_image'].shape[1]]
+            elif scale < 1:
+                bev_seg_image = mmcv.impad(bev_seg_image, shape=input_dict['bev_seg_image'].shape, pad_val=0)
+            input_dict['bev_seg_image'] = bev_seg_image
     def _random_scale(self, input_dict):
         """Private function to randomly set the scale factor.
 

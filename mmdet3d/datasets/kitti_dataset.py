@@ -129,6 +129,7 @@ class KittiDataset(Custom3DDataset):
             img_info=dict(filename=img_filename),
             lidar2img=lidar2img)
 
+        input_dict["mask_path"] = self.get_ann_mask(index)
         if not self.test_mode:
             annos = self.get_ann_info(index)
             input_dict['ann_info'] = annos
@@ -191,6 +192,23 @@ class KittiDataset(Custom3DDataset):
             labels=gt_labels,
             gt_names=gt_names)
         return anns_results
+
+    def get_ann_mask(self, index):
+        """Get annotation mask according to given index
+
+        Args:
+            index (int): Index of the annotation data to get.
+        
+        Returns:
+
+        """
+        info = self.data_infos[index]
+        sample_idx = info["image"]["image_idx"]
+        image_name = info["image"]["image_path"].split('/')[-1]
+
+        root_path = "/home/zhangxiao/code/tools/mmdetection3d/data/pillardetection_label"
+        mask_path = os.path.join(root_path, image_name.replace('png', 'pkl'))
+        return mask_path
 
     def drop_arrays_by_name(self, gt_names, used_classes):
         """Drop irrelevant ground truths by name.

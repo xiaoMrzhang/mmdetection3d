@@ -73,7 +73,8 @@ class DefaultFormatBundle(object):
         if 'gt_semantic_seg' in results:
             results['gt_semantic_seg'] = DC(
                 to_tensor(results['gt_semantic_seg'][None, ...]), stack=True)
-
+        if 'bev_seg_image' in results:
+            results['bev_seg_image'] = DC(to_tensor(results['bev_seg_image'][None, ...]), stack=True)
         return results
 
     def __repr__(self):

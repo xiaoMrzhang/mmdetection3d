@@ -73,7 +73,7 @@ class SECONDFPN(nn.Module):
                 constant_init(m, 1)
 
     @auto_fp16()
-    def forward(self, x):
+    def forward(self, x, seg_mask=None):
         """Forward function.
 
         Args:
@@ -89,5 +89,14 @@ class SECONDFPN(nn.Module):
             out = torch.cat(ups, dim=1)
         else:
             out = ups[0]
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
+        if seg_mask is not None:
+            if isinstance(seg_mask, list):
+                seg_mask = seg_mask[0]
+                # seg_mask = seg_mask.permute(0, 1, 3, 2)
+            if not isinstance(seg_mask, torch.Tensor):
+                seg_mask = torch.from_numpy(np.array(seg_mask).astype(np.float32)).float()
+            if seg_mask.dim == 3:
+                seg_mask = seg_mask.unsqueeze(1)
+            out = torch.mul(out, seg_mask) + out
         return [out]
