@@ -81,7 +81,10 @@ class RandomFlip3D(RandomFlip):
         if 'bev_seg_image' in input_dict:
             assert input_dict['bev_seg_image'] is not None, \
                 'bev seg image is None, please check segimage path'
-            seg_img = mmcv.imflip(input_dict['bev_seg_image'], direction)
+            if direction == 'horizontal':
+                seg_img = mmcv.imflip(input_dict['bev_seg_image'], 'vertical')
+            else:
+                seg_img = mmcv.imflip(input_dict['bev_seg_image'], 'horizontal')
             input_dict['bev_seg_image'] = seg_img
 
     def __call__(self, input_dict):
@@ -382,9 +385,25 @@ class GlobalRotScaleTrans(object):
 
         if 'bev_seg_image' in input_dict.keys() and 'pcd_rotation' in input_dict:
             bev_seg_image = input_dict['bev_seg_image']
-            bev_seg_image = cv2.warpAffine(bev_seg_image, rot_mat_T[:2, :].numpy(),
+            # rotate by (0, 0)
+            rot_mat_cv_T = rot_mat_T[:2, :].numpy()
+            rot_mat_cv_T[0][1] = -rot_mat_cv_T[0][1]
+            rot_mat_cv_T[1][0] = -rot_mat_cv_T[1][0]
+            bev_seg_image = cv2.warpAffine(bev_seg_image, rot_mat_cv_T,
                             (bev_seg_image.shape[1], bev_seg_image.shape[0]), flags=cv2.INTER_NEAREST)
+
+            # rotate by center
+            # bev_seg_image = mmcv.imrotate(bev_seg_image, -(noise_rotation * 180. / np.pi), interpolation='bilinear')
+
+            # rotate and resize
+            # bev_seg_image = mmcv.imrotate(bev_seg_image, -(noise_rotation * 180. / np.pi),
+            #                               interpolation='bilinear',auto_bound=True)
+            # if bev_seg_image.shape != (248, 216):
+            #     bev_seg_image = mmcv.imresize(bev_seg_image,
+            #                     (216, 248), interpolation='nearest')
+
             input_dict['bev_seg_image'] = bev_seg_image
+
     def _scale_bbox_points(self, input_dict):
         """Private function to scale bounding boxes and points.
 

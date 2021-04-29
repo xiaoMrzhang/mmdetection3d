@@ -457,7 +457,7 @@ class LoadBevSegFromFile(object):
         # seg_img = mmcv.imread(image_path)
         with open(image_path, 'rb') as f:
             seg_img = pickle.load(f)
-        seg_img = seg_img['pillar_map_if_in_bboxes'].view(432, 432).numpy()
+        seg_img = seg_img['pillar_map_if_in_bboxes'].view(496, 432).numpy()
         seg_img = mmcv.imresize(seg_img, (216, 248), interpolation='nearest')
         return seg_img
     

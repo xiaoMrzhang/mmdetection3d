@@ -22,7 +22,6 @@ db_sampler = dict(
 # PointPillars uses different augmentation hyper parameters
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
-    dict(type='LoadBevSegFromFile', file_root_path="./data/pillarseg_label_zx"),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(type='ObjectSample', db_sampler=db_sampler),
     dict(
@@ -40,12 +39,10 @@ train_pipeline = [
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='PointShuffle'),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
-    dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d', 'bev_seg_image'])
+    dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'gt_labels_3d'])
 ]
 test_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
-    dict(type='LoadBevSegFromFile', file_root_path="./data/pillarseg_label_zx"),
-    dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
     dict(
         type='MultiScaleFlipAug3D',
         img_scale=(1333, 800),
@@ -61,12 +58,10 @@ test_pipeline = [
             dict(
                 type='PointsRangeFilter', point_cloud_range=point_cloud_range),
             dict(
-                type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
-            dict(
                 type='DefaultFormatBundle3D',
                 class_names=class_names,
                 with_label=False),
-            dict(type='Collect3D', keys=['points', 'gt_bboxes_3d', 'bev_seg_image'])
+            dict(type='Collect3D', keys=['points'])
         ])
 ]
 
@@ -84,7 +79,7 @@ optimizer = dict(lr=lr)
 # specifically tune this parameter.
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 # Use evaluation interval=2 reduce the number of evaluation timese
-evaluation = dict(interval=1)
+evaluation = dict(interval=2)
 # PointPillars usually need longer schedule than second, we simply double
 # the training schedule. Do remind that since we use RepeatDataset and
 # repeat factor is 2, so we actually train 160 epochs.

@@ -63,6 +63,9 @@ class SECONDFPN(nn.Module):
                                     nn.ReLU(inplace=True))
             deblocks.append(deblock)
         self.deblocks = nn.ModuleList(deblocks)
+        conv_1 = nn.Conv2d(in_channels[0], out_channels[2], kernel_size=1, bias=False)
+        conv_2 = nn.Conv2d(out_channels[2], sum(out_channels), kernel_size=1, bias=False)
+        self.spital = nn.Sequential(conv_1, conv_2, nn.Sigmoid())
 
     def init_weights(self):
         """Initialize weights of FPN."""
@@ -89,14 +92,23 @@ class SECONDFPN(nn.Module):
             out = torch.cat(ups, dim=1)
         else:
             out = ups[0]
+        
+        #####
+        resdiu = self.spital(x[0])
         # import pdb;pdb.set_trace()
+        seg_mask = resdiu
+        #####
+
         if seg_mask is not None:
             if isinstance(seg_mask, list):
                 seg_mask = seg_mask[0]
                 # seg_mask = seg_mask.permute(0, 1, 3, 2)
             if not isinstance(seg_mask, torch.Tensor):
-                seg_mask = torch.from_numpy(np.array(seg_mask).astype(np.float32)).float()
-            if seg_mask.dim == 3:
+                seg_mask = torch.from_numpy(np.array(seg_mask).astype(np.float32)).float().cuda(1)
+            if seg_mask.dim() == 3:
                 seg_mask = seg_mask.unsqueeze(1)
+            # import pdb;pdb.set_trace()
             out = torch.mul(out, seg_mask) + out
+        else:
+            print("seg_mask is None")
         return [out]

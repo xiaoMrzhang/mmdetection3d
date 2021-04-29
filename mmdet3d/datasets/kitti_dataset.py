@@ -130,9 +130,9 @@ class KittiDataset(Custom3DDataset):
             lidar2img=lidar2img)
 
         input_dict["mask_path"] = self.get_ann_mask(index)
-        if not self.test_mode:
-            annos = self.get_ann_info(index)
-            input_dict['ann_info'] = annos
+        # if not self.test_mode:
+        annos = self.get_ann_info(index)
+        input_dict['ann_info'] = annos
 
         return input_dict
 
@@ -490,7 +490,7 @@ class KittiDataset(Custom3DDataset):
             if not pklfile_prefix.endswith(('.pkl', '.pickle')):
                 out = f'{pklfile_prefix}.pkl'
             mmcv.dump(det_annos, out)
-            # mmcv.dump(det_annos, "work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/result_kitti.pkl")
+            mmcv.dump(det_annos, "work_dirs/hv_pointpillars_segmask_6x8_160e_kitti-3d-3class/result_kitti.pkl")
             print(f'Result is saved to {out}.')
 
         return det_annos

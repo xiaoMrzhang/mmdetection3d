@@ -1,13 +1,15 @@
 import torch
 from mmcv.runner import force_fp32
 from torch.nn import functional as F
+import numpy as np
+import cv2
 
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
 from mmdet3d.ops import Voxelization
 from mmdet.models import DETECTORS
 from .. import builder
 from .single_stage import SingleStage3DDetector
-
+from mmdet3d.core.visualizer.show_result import kitti_vis, center_to_corner_box2d
 
 @DETECTORS.register_module()
 class VoxelNet(SingleStage3DDetector):
@@ -85,14 +87,17 @@ class VoxelNet(SingleStage3DDetector):
             gt_bboxes_3d (list[:obj:`BaseInstance3DBoxes`]): Ground truth
                 boxes for each sample.
             gt_labels_3d (list[torch.Tensor]): Ground truth labels for
-                boxes of each sampole
+                boxes of each sample
             gt_bboxes_ignore (list[torch.Tensor], optional): Ground truth
                 boxes to be ignored. Defaults to None.
 
         Returns:
             dict: Losses of each branch.
         """
-        x = self.extract_feat(points, img_metas, bev_seg_image)
+        segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                boxes=gt_bboxes_3d)
+        x = self.extract_feat(points, img_metas, segmask_maps)
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
@@ -101,9 +106,13 @@ class VoxelNet(SingleStage3DDetector):
         # losses = self.bbox_head.loss(*loss_inputs)
         return losses
 
-    def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None, rescale=False):
+    def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None,
+                    rescale=False, gt_bboxes_3d=None):
         """Test function without augmentaiton."""
-        x = self.extract_feat(points, img_metas, bev_seg_image)
+        segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                boxes=gt_bboxes_3d)
+        x = self.extract_feat(points, img_metas, segmask_maps)
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
@@ -140,3 +149,38 @@ class VoxelNet(SingleStage3DDetector):
                                             self.bbox_head.test_cfg)
 
         return [merged_bboxes]
+
+    def generate_mask(self, points, vis_voxel_size, vis_point_range, boxes):
+        """generate segmask by given pointcloud and bounding boxes
+
+        Args:
+            points (torch.Tensor): point cloud batch
+            vis_voxel_size (list): voxel size
+            vis_point_range (list): point cloud range
+            boxes (LiDARInstance3DBoxes): gt boxes
+        """
+        w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1])
+        h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0])
+        segmask_maps = np.zeros((len(points), int(w/2), int(h/2)))
+        # import pdb;pdb.set_trace()
+        for i in range(segmask_maps.shape[0]):
+            vis_point_range = np.array(vis_point_range)
+            if isinstance(boxes[i], list):
+                assert len(boxes[i]) == 1
+                current_bbox = boxes[i][0].tensor.detach().cpu().numpy()
+            else:
+                current_bbox = boxes[i].tensor.detach().cpu().numpy()
+            bev_corners = center_to_corner_box2d(
+                current_bbox[:, [0, 1]], current_bbox[:, [3, 4]], current_bbox[:, 6])
+            bev_corners -= vis_point_range[:2]
+            bev_corners *= np.array(
+                segmask_maps.shape[1:3])[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
+            segmask = np.zeros((w, h, 3))
+            segmask = cv2.drawContours(segmask, bev_corners.astype(np.int), -1, 255, -1)
+            segmask = cv2.resize(segmask, (int(segmask.shape[1]/2), int(segmask.shape[0]/2)), interpolation=cv2.INTER_NEAREST)
+            segmask_maps[i] = segmask[:, :, 0] / 255.
+        # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[0])
+        # bev_map = kitti_vis(points[0].data.cpu().numpy(), vis_voxel_size=vis_voxel_size,
+        #                     vis_point_range=vis_point_range, boxes=boxes[0].tensor.detach().cpu().numpy())
+        # import pdb;pdb.set_trace()
+        return segmask_maps
