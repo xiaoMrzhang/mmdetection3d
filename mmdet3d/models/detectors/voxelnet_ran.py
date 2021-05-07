@@ -6,7 +6,7 @@ import cv2
 
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
 from mmdet3d.ops import Voxelization
-from mmdet.models import DETECTORS, build_neck
+from mmdet.models import DETECTORS, build_neck, build_backbone
 from .. import builder
 from .single_stage import SingleStage3DDetector
 from mmdet3d.core.visualizer.show_result import kitti_vis, center_to_corner_box2d
@@ -34,7 +34,9 @@ class VoxelNet_RAN(SingleStage3DDetector):
             pretrained=pretrained,
         )
         self.voxel_layer = Voxelization(**voxel_layer)
-        import pdb;pdb.set_trace()
+        self.backbone_second = build_backbone(backbone)
+        if neck is not None:
+            self.neck_secondfpn = build_neck(neck)
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
 
@@ -44,10 +46,16 @@ class VoxelNet_RAN(SingleStage3DDetector):
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
+
+        # ran module
+        ran_x = self.backbone_second(x)
+        if self.with_neck:
+            ran_x = self.neck_secondfpn(ran_x)
+
         x = self.backbone(x)
     
         if self.with_neck:
-            x = self.neck(x)
+            x = self.neck(x, ran_x)
         return x
 
     @torch.no_grad()

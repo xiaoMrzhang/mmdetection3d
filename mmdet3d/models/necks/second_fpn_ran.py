@@ -33,7 +33,7 @@ class SECONDFPN_RAN(nn.Module):
                  use_conv_for_no_stride=False):
         # if for GroupNorm,
         # cfg is dict(type='GN', num_groups=num_groups, eps=1e-3, affine=True)
-        super(SECONDFPN, self).__init__()
+        super(SECONDFPN_RAN, self).__init__()
         assert len(out_channels) == len(upsample_strides) == len(in_channels)
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -63,8 +63,8 @@ class SECONDFPN_RAN(nn.Module):
                                     nn.ReLU(inplace=True))
             deblocks.append(deblock)
         self.deblocks = nn.ModuleList(deblocks)
-        conv_1 = nn.Conv2d(in_channels[0], out_channels[2], kernel_size=1, bias=False)
-        conv_2 = nn.Conv2d(out_channels[2], sum(out_channels), kernel_size=1, bias=False)
+        conv_1 = nn.Conv2d(sum(out_channels), sum(out_channels), kernel_size=1, bias=False)
+        conv_2 = nn.Conv2d(sum(out_channels), sum(out_channels), kernel_size=1, bias=False)
         self.spital = nn.Sequential(conv_1, conv_2, nn.Sigmoid())
 
     def init_weights(self):
@@ -76,7 +76,7 @@ class SECONDFPN_RAN(nn.Module):
                 constant_init(m, 1)
 
     @auto_fp16()
-    def forward(self, x):
+    def forward(self, x, x_ran=None):
         """Forward function.
 
         Args:
@@ -93,7 +93,9 @@ class SECONDFPN_RAN(nn.Module):
         else:
             out = ups[0]
         
-        resdiu = self.spital(x[0])
-        # import pdb;pdb.set_trace()
-        out = torch.mul(out, resdiu) + out
+        if x_ran is not None:
+            if isinstance(x_ran, list):
+                x_ran = x_ran[0]
+            # x_ran = self.spital(x_ran)
+            out = torch.mul(out, x_ran) + out
         return [out]

@@ -68,7 +68,8 @@ test_pipeline = [
 data = dict(
     train=dict(dataset=dict(pipeline=train_pipeline, classes=class_names)),
     val=dict(pipeline=test_pipeline, classes=class_names),
-    test=dict(pipeline=test_pipeline, classes=class_names))
+    test=dict(pipeline=test_pipeline, classes=class_names),
+    samples_per_gpu=2)
 
 # In practice PointPillars also uses a different schedule
 # optimizer
