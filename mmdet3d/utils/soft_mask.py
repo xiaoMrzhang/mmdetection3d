@@ -20,11 +20,16 @@ class SoftMask(nn.Module):
 
     # input size is 248*216
     def __init__(self, in_channels=128, out_channels=[128, 128, 256], size1=(248, 216), \
-                 size2=(124, 108), size3=(62, 54)):
+                 size2=(124, 108), size3=(62, 54), out_size_factor=2):
         super(SoftMask, self).__init__()
 
+        self.out_size_factor = out_size_factor
         self.first_residual_blocks = ResidualBlock(in_channels, out_channels[0])
         self.mpool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # self.downsample1 = nn.Sequential(
+        #     nn.Conv2d(out_channels[0], out_channels[0], kernel_size=3, stride=2, padding=1),
+        #     nn.BatchNorm2d(out_channels[0]),
+        #     nn.ReLU(inplace=True))
         # 124*108
         self.softmax1_blocks = ResidualBlock(out_channels[0], out_channels[1])
 
@@ -88,6 +93,8 @@ class SoftMask(nn.Module):
         """
         # 248*216
         x = self.first_residual_blocks(x)
+        # if self.out_size_factor > 2:
+        #     x = self.downsample1(x)
 
         out_mpool1 = self.mpool1(x)
         # 124*108
@@ -334,24 +341,25 @@ def test():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using {} device".format(device))
 
-    x = torch.rand(3, 32, 248, 216).float().to(device)    
-    print(x.shape)
-    mask1 = SoftMaskEncoder1(32, 64).to(device)
-    m1 = mask1(x)
-    print(m1.shape)
+    # x = torch.rand(3, 32, 248, 216).float().to(device)    
+    # print(x.shape)
+    # mask1 = SoftMaskEncoder1(32, 64).to(device)
+    # m1 = mask1(x)
+    # print(m1.shape)
 
-    y = torch.randn(3, 64, 124, 108).float().to(device)
-    mask2 = SoftMaskEncoder2(64, 128).to(device)
-    m2 = mask2(y)
-    print(m2.shape)
+    # y = torch.randn(3, 64, 124, 108).float().to(device)
+    # mask2 = SoftMaskEncoder2(64, 128).to(device)
+    # m2 = mask2(y)
+    # print(m2.shape)
 
-    z = torch.randn(3, 128, 62, 54).float().to(device)
-    mask3 = SoftMaskEncoder3(128, 256).to(device)
-    m3 = mask3(z)
-    print(m3.shape)
+    # z = torch.randn(3, 128, 62, 54).float().to(device)
+    # mask3 = SoftMaskEncoder3(128, 256).to(device)
+    # m3 = mask3(z)
+    # print(m3.shape)
 
     f = torch.randn(3, 128, 248, 216).float().to(device)
-    soft_mask = SoftMask(128, [128, 128, 256, 512]).to(device)
+    # soft_mask = SoftMask(128, [128, 128, 256, 512]).to(device)
+    soft_mask = SoftMask(128, [128, 128, 256, 512], size1=(124, 108), size2=(62, 54), size3=(31, 27), out_size_factor=4).to(device)
     masks = soft_mask(f)
     print(masks[0].shape)
     print(masks[1].shape)

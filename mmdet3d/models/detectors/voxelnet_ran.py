@@ -101,11 +101,11 @@ class VoxelNet_RAN(SingleStage3DDetector):
         """
         x = self.extract_feat(points, img_metas)
         outs = self.bbox_head(x)
-        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        losses = self.bbox_head.loss(
-            *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
-        # losses = self.bbox_head.loss(*loss_inputs)
+        # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+        # losses = self.bbox_head.loss(
+        #     *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
+        losses = self.bbox_head.loss(*loss_inputs)
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None,
@@ -113,18 +113,18 @@ class VoxelNet_RAN(SingleStage3DDetector):
         """Test function without augmentaiton."""
         x = self.extract_feat(points, img_metas)
         outs = self.bbox_head(x)
-        bbox_list = self.bbox_head.get_bboxes(
-            *outs, img_metas, rescale=rescale)
-        bbox_results = [
-            bbox3d2result(bboxes, scores, labels)
-            for bboxes, scores, labels in bbox_list
-        ]
         # bbox_list = self.bbox_head.get_bboxes(
-        #     outs, img_metas, rescale=rescale)
+        #     *outs, img_metas, rescale=rescale)
         # bbox_results = [
         #     bbox3d2result(bboxes, scores, labels)
         #     for bboxes, scores, labels in bbox_list
         # ]
+        bbox_list = self.bbox_head.get_bboxes(
+            outs, img_metas, rescale=rescale)
+        bbox_results = [
+            bbox3d2result(bboxes, scores, labels)
+            for bboxes, scores, labels in bbox_list
+        ]
         return bbox_results
 
     def aug_test(self, points, img_metas, imgs=None, rescale=False):

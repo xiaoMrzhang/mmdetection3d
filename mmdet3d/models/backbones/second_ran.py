@@ -8,7 +8,7 @@ from mmdet3d.utils.soft_mask import SoftMask
 
 @BACKBONES.register_module()
 class SECOND_RAN(nn.Module):
-    """Backbone network for SECOND/PointPillars/PartA2/MVXNet.
+    """Backbone network for SECOND with residual attention network
 
     Args:
         in_channels (int): Input channels.
@@ -93,7 +93,12 @@ class SECOND_RAN(nn.Module):
             tuple[torch.Tensor]: Multi-scale features.
         """
         masks = self.soft_mask_block(x)
-
+        # save_feature = True
+        # if save_feature:
+        #     import numpy as np
+        #     for i in range(len(masks)):
+        #         save_path = "/home/zhangxiao/tmp/" + str(i) + ".npy" 
+        #         np.save(save_path, masks[i][0].cpu().data.numpy())
         outs = []
         for i in range(len(self.blocks)):
             x = self.blocks[i](x)

@@ -93,22 +93,22 @@ class SECONDFPN(nn.Module):
         else:
             out = ups[0]
         
-        #####
-        resdiu = self.spital(x[0])
-        # import pdb;pdb.set_trace()
-        seg_mask = resdiu
-        #####
+        # #####
+        # resdiu = self.spital(x[0])
+        # # import pdb;pdb.set_trace()
+        # seg_mask = resdiu
+        # #####
 
-        if seg_mask is not None:
-            if isinstance(seg_mask, list):
-                seg_mask = seg_mask[0]
-                # seg_mask = seg_mask.permute(0, 1, 3, 2)
-            if not isinstance(seg_mask, torch.Tensor):
-                seg_mask = torch.from_numpy(np.array(seg_mask).astype(np.float32)).float().cuda(1)
-            if seg_mask.dim() == 3:
-                seg_mask = seg_mask.unsqueeze(1)
-            # import pdb;pdb.set_trace()
-            out = torch.mul(out, seg_mask) + out
-        else:
-            print("seg_mask is None")
+        # if seg_mask is not None:
+        #     if isinstance(seg_mask, list):
+        #         seg_mask = seg_mask[0]
+        #         # seg_mask = seg_mask.permute(0, 1, 3, 2)
+        #     if not isinstance(seg_mask, torch.Tensor):
+        #         seg_mask = torch.from_numpy(np.array(seg_mask).astype(np.float32)).float().cuda(1)
+        #     if seg_mask.dim() == 3:
+        #         seg_mask = seg_mask.unsqueeze(1)
+        #     # import pdb;pdb.set_trace()
+        #     out = torch.mul(out, seg_mask) + out
+        # else:
+        #     print("seg_mask is None")
         return [out]

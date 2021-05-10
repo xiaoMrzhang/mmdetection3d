@@ -45,6 +45,7 @@ class VoxelNet(SingleStage3DDetector):
         x = self.middle_encoder(voxel_features, coors, batch_size)
         x = self.backbone(x)
         
+        # This for cfa module
         # x = self.backbone(x, voxel_features, coors)
         # voxel_context = self.cfa(voxel_features, coors) 这部分写到backbone里面？
 

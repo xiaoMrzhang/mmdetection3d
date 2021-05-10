@@ -71,7 +71,7 @@ def test():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Using {} device".format(device))
 
-    x = torch.randn(3, 32, 124, 108).float().to(device)
+    x = torch.randn(3, 32, 31, 27).float().to(device)
     
     print(x.shape)
 
