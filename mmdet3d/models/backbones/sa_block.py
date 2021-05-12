@@ -1,8 +1,11 @@
+"""
+SA Block
+"""
+
 import torch
 from torch import nn
 
-
-class SA_block(nn.Module):
+class SABlock(nn.Module):
     """Self-Attention block with dot product for point/voxel/pillar context.
     A part of the code is from MLCVNet (CVPR 2020).
     """
@@ -46,6 +49,8 @@ class SA_block(nn.Module):
         return out
 
     def forward(self, x):
+        """Forward Function
+        """
         residual = x
 
         t = self.t(x)
@@ -73,7 +78,7 @@ class SA_block(nn.Module):
         return x
 
 
-class SA_block_def(nn.Module):
+class SABlockDef(nn.Module):
     """Self-Attention block with dot product for point/voxel/pillar context.
     """
 
@@ -116,6 +121,8 @@ class SA_block_def(nn.Module):
         return out
 
     def forward(self, x, y):
+        """Forward function
+        """
         residual = x
 
         t = self.t(y)

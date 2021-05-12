@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import math
 
 from mmdet.models import BACKBONES
-from mmdet3d.models.backbones.sa_block import SA_block
+from mmdet3d.models.backbones.sa_block import SABlock as SA_block
 
 class PositionalEncoding(nn.Module):
     """
@@ -39,6 +39,8 @@ class PositionalEncoding(nn.Module):
         return pe
 
     def forward(self, x, coords):
+        """Forward function
+        """
         pos_encode = self.pos_table[:, coords[:, 2].type(torch.cuda.LongTensor), coords[:, 3].type(torch.cuda.LongTensor)]
         return x + pos_encode.permute(1, 0).contiguous().clone().detach()
 
@@ -120,6 +122,8 @@ class SECOND_FSA(nn.Module):
             load_checkpoint(self, pretrained, strict=False, logger=logger)
 
     def add_context_to_pillars(self, pillar_features, coords, nx, ny, nz, in_channels=128):
+        """ 
+        """
         batch_size = coords[:, 0].max().int().item() + 1
         batch_context_features = []
         for batch_idx in range(batch_size):
@@ -165,7 +169,8 @@ class SECOND_FSA(nn.Module):
         pillar_pos_enc = self.layer_norm(pillar_pos_enc)
 
         # get context for every pillar
-        context_features = self.add_context_to_pillars(pillar_pos_enc, coors, self.nx, self.ny, self.nz, self.out_channel)
+        context_features = self.add_context_to_pillars(pillar_pos_enc, coors, self.nx,
+                                                       self.ny, self.nz, self.out_channel)
 
         # generate down-sampled SA-features to concatenate with Conv in decoder_2d module
         pillar_context = [F.interpolate(context_features, scale_factor=0.5, mode='bilinear'),
@@ -177,8 +182,3 @@ class SECOND_FSA(nn.Module):
             out = torch.cat([spatial_features[i], pillar_context[i]], dim=1)
             outs.append(out)
         return tuple(outs)
-
-        # spatial_features = [torch.cat([spatial_features[0], F.interpolate(context_features, scale_factor=0.5, mode='bilinear')], dim=1),
-        #                     torch.cat([spatial_features[1], F.interpolate(context_features, scale_factor=0.25, mode='bilinear')], dim=1),
-        #                     torch.cat([spatial_features[2], F.interpolate(context_features, scale_factor=0.125, mode='bilinear')], dim=1),]
-        # return tuple(spatial_features)

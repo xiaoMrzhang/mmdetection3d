@@ -1,3 +1,5 @@
+"""Second FPN with Residual attention"""
+
 import numpy as np
 import torch
 from mmcv.cnn import (build_conv_layer, build_norm_layer, build_upsample_layer,
@@ -40,10 +42,17 @@ class SECONDFPN_RAN(nn.Module):
         self.fp16_enabled = False
 
         deblocks = []
+        spitals = []
         for i, out_channel in enumerate(out_channels):
             stride = upsample_strides[i]
             if stride > 1 or (stride == 1 and not use_conv_for_no_stride):
                 upsample_layer = build_upsample_layer(
+                    upsample_cfg,
+                    in_channels=in_channels[i],
+                    out_channels=out_channel,
+                    kernel_size=upsample_strides[i],
+                    stride=upsample_strides[i])
+                conv_1 = build_upsample_layer(
                     upsample_cfg,
                     in_channels=in_channels[i],
                     out_channels=out_channel,
@@ -57,15 +66,26 @@ class SECONDFPN_RAN(nn.Module):
                     out_channels=out_channel,
                     kernel_size=stride,
                     stride=stride)
+                conv_1s = build_conv_layer(
+                    conv_cfg,
+                    in_channels=in_channels[i],
+                    out_channels=out_channel,
+                    kernel_size=stride,
+                    stride=stride)
 
             deblock = nn.Sequential(upsample_layer,
                                     build_norm_layer(norm_cfg, out_channel)[1],
                                     nn.ReLU(inplace=True))
             deblocks.append(deblock)
+
+            conv_2 = build_conv_layer(conv_cfg, in_channels=out_channel, out_channels=out_channel,
+                                      kernel_size=1, stride=1)
+            spital = nn.Sequential(conv_1, build_norm_layer(norm_cfg, out_channel)[1], nn.ReLU(inplace=True),
+                                  conv_2, nn.Sigmoid())
+            spitals.append(spital)
+
         self.deblocks = nn.ModuleList(deblocks)
-        conv_1 = nn.Conv2d(sum(out_channels), sum(out_channels), kernel_size=1, bias=False)
-        conv_2 = nn.Conv2d(sum(out_channels), sum(out_channels), kernel_size=1, bias=False)
-        self.spital = nn.Sequential(conv_1, conv_2, nn.Sigmoid())
+        self.spitals = nn.ModuleList(spitals)
 
     def init_weights(self):
         """Initialize weights of FPN."""
@@ -76,7 +96,7 @@ class SECONDFPN_RAN(nn.Module):
                 constant_init(m, 1)
 
     @auto_fp16()
-    def forward(self, x, x_ran=None):
+    def forward(self, x, seg_mask=None):
         """Forward function.
 
         Args:
@@ -87,15 +107,14 @@ class SECONDFPN_RAN(nn.Module):
         """
         assert len(x) == len(self.in_channels)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
+        ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
 
         if len(ups) > 1:
             out = torch.cat(ups, dim=1)
+            att = torch.cat(ras, dim=1)
         else:
             out = ups[0]
+            att = ras[0]
         
-        if x_ran is not None:
-            if isinstance(x_ran, list):
-                x_ran = x_ran[0]
-            # x_ran = self.spital(x_ran)
-            out = torch.mul(out, x_ran) + out
+        out = torch.mul(out, att) + out
         return [out]
