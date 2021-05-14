@@ -6,6 +6,7 @@ from mmcv.cnn import (build_conv_layer, build_norm_layer, build_upsample_layer,
                       constant_init, is_norm, kaiming_init)
 from mmcv.runner import auto_fp16
 from torch import nn as nn
+import torch.nn.functional as F
 
 from mmdet.models import NECKS
 
@@ -43,6 +44,7 @@ class SECONDFPN_RAN(nn.Module):
 
         deblocks = []
         spitals = []
+        channel_blocks = []
         for i, out_channel in enumerate(out_channels):
             stride = upsample_strides[i]
             if stride > 1 or (stride == 1 and not use_conv_for_no_stride):
@@ -66,7 +68,7 @@ class SECONDFPN_RAN(nn.Module):
                     out_channels=out_channel,
                     kernel_size=stride,
                     stride=stride)
-                conv_1s = build_conv_layer(
+                conv_1 = build_conv_layer(
                     conv_cfg,
                     in_channels=in_channels[i],
                     out_channels=out_channel,
@@ -82,10 +84,15 @@ class SECONDFPN_RAN(nn.Module):
                                       kernel_size=1, stride=1)
             spital = nn.Sequential(conv_1, build_norm_layer(norm_cfg, out_channel)[1], nn.ReLU(inplace=True),
                                   conv_2, nn.Sigmoid())
+            conv_c = build_conv_layer(conv_cfg, in_channels=in_channels[i], out_channels=out_channel,
+                                      kernel_size=1, stride=1)
+            channel_layer = nn.Sequential(conv_c, nn.Sigmoid())
             spitals.append(spital)
+            channel_blocks.append(channel_layer)
 
         self.deblocks = nn.ModuleList(deblocks)
         self.spitals = nn.ModuleList(spitals)
+        self.channel_blocks = nn.ModuleList(channel_blocks)
 
     def init_weights(self):
         """Initialize weights of FPN."""
@@ -107,7 +114,14 @@ class SECONDFPN_RAN(nn.Module):
         """
         assert len(x) == len(self.in_channels)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
-        ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
+        if seg_mask is None:
+            ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
+        else:
+            # ras = [spital(seg_mask[i]) for i, spital in enumerate(self.spitals)]
+            ras = [seg_mask[0],
+                   F.interpolate(seg_mask[1], scale_factor=2, mode='bilinear'),
+                   F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear')]
+            ras = [channel_block(ras[i]) for i, channel_block in enumerate(self.channel_blocks)]
 
         if len(ups) > 1:
             out = torch.cat(ups, dim=1)

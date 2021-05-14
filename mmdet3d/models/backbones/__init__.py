@@ -7,9 +7,10 @@ from .second import SECOND
 from .second_fsa import SECOND_FSA
 from .second_ran import SECOND_RAN
 from .second_ran_ori import SECOND_RAN_ORI
+from .second_ran_reuse_mask import SECONDRanMask
 
 __all__ = [
     'ResNet', 'ResNetV1d', 'ResNeXt', 'SSDVGG', 'HRNet', 'NoStemRegNet',
     'SECOND', 'PointNet2SASSG', 'PointNet2SAMSG', 'MultiBackbone',
-    'SECOND_FSA', 'SECOND_RAN', 'SECOND_RAN_ORI'
+    'SECOND_FSA', 'SECOND_RAN', 'SECOND_RAN_ORI', "SECONDRanMask"
 ]

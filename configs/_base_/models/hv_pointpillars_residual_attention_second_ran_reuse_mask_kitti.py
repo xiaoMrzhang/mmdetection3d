@@ -1,6 +1,6 @@
 voxel_size = [0.16, 0.16, 4]
 model = dict(
-    type='VoxelNet',
+    type='VoxelNet_RAN',
     voxel_layer=dict(
         max_num_points=32,
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1],
@@ -16,7 +16,7 @@ model = dict(
     middle_encoder=dict(
         type='PointPillarsScatter', in_channels=64, output_shape=[496, 432]),
     backbone=dict(
-        type='SECOND_RAN',
+        type='SECONDRanMask',
         in_channels=64,
         layer_nums=[3, 5, 5],
         layer_strides=[2, 2, 2],

@@ -58,7 +58,7 @@ class SoftMask(nn.Module):
             nn.BatchNorm2d(out_channels[2]),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels[2], out_channels[2], kernel_size=1, stride=1, bias = False),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
 
         self.residual7_blocks = nn.Sequential(
@@ -66,7 +66,7 @@ class SoftMask(nn.Module):
             nn.BatchNorm2d(out_channels[1]),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels[1], out_channels[1], kernel_size=1, stride=1, bias = False),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
 
         self.residual8_blocks = nn.Sequential(
@@ -74,7 +74,7 @@ class SoftMask(nn.Module):
             nn.BatchNorm2d(out_channels[0]),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_channels[0], out_channels[0], kernel_size=1, stride=1, bias = False),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
 
     def forward(self, x):
