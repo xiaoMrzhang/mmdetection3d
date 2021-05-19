@@ -77,7 +77,31 @@ class SoftMask(nn.Module):
             # nn.Sigmoid()
         )
 
-    def forward(self, x):
+        self.binary_cls2 = nn.Sequential(
+            nn.Conv2d(out_channels[2], out_channels[2], kernel_size=1, stride=1, bias = False),
+            nn.BatchNorm2d(out_channels[2]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels[2], 1, kernel_size=1, stride=1, bias = False),
+            nn.Sigmoid()
+        )
+
+        self.binary_cls1 = nn.Sequential(
+            nn.Conv2d(out_channels[1], out_channels[1], kernel_size=1, stride=1, bias = False),
+            nn.BatchNorm2d(out_channels[1]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels[1], 1, kernel_size=1, stride=1, bias = False),
+            nn.Sigmoid()
+        )
+
+        self.binary_cls0 = nn.Sequential(
+            nn.Conv2d(out_channels[0], out_channels[0], kernel_size=1, stride=1, bias = False),
+            nn.BatchNorm2d(out_channels[0]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels[0], 1, kernel_size=1, stride=1, bias = False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, type=1):
         """Forward function.
         
         Args:
@@ -102,17 +126,53 @@ class SoftMask(nn.Module):
         out_residual3 = self.residual3_blocks(out_mpool3)
         out = self.interpolation3(out_residual3) + out_skip2_connection        
         # 62*54
-        mask3 = self.residual6_blocks(out)
+        if type == 1:
+            mask3 = self.residual6_blocks(out)
+        elif type == 2:
+            mask3 = self.binary_cls2(out)
+            mask3 = mask3.repeat(1, out.shape[1], 1, 1)
+        elif type == 3:
+            mask3 = self.residual6_blocks(out)
+            mask3_ = self.binary_cls2(out)
+            mask3_ = mask3_.repeat(1, out.shape[1], 1, 1)
+            mask3 = torch.mul(mask3, mask3_)
+            mask3 = torch.sqrt(mask3)
+        else:
+            mask3 = self.residual6_blocks(out)
 
         out_residual4 = self.residual4_blocks(out)
         out = self.interpolation2(out_residual4) + out_skip1_connection        
         # 124*108
-        mask2 = self.residual7_blocks(out)
+        if type == 1:
+            mask2 = self.residual7_blocks(out)
+        elif type == 2:
+            mask2 = self.binary_cls1(out)
+            mask2 = mask2.repeat(1, out.shape[1], 1, 1)
+        elif type == 3:
+            mask2 = self.residual7_blocks(out)
+            mask2_ = self.binary_cls1(out)
+            mask2_ = mask2_.repeat(1, out.shape[1], 1, 1)
+            mask2 = torch.mul(mask2, mask2_)
+            mask2 = torch.sqrt(mask2)
+        else:
+            mask2 = self.residual7_blocks(out)
 
         out_residual5 = self.residual5_blocks(out)
         out = self.interpolation1(out_residual5) + y
         # 248*216
-        mask1 = self.residual8_blocks(out)
+        if type == 1:
+            mask1 = self.residual8_blocks(out)
+        elif type == 2:
+            mask1 = self.binary_cls0(out)
+            mask1 = mask1.repeat(1, out.shape[1], 1, 1)
+        elif type == 3:
+            mask1 = self.residual8_blocks(out)
+            mask1_ = self.binary_cls0(out)
+            mask1_ = mask1_.repeat(1, out.shape[1], 1, 1)
+            mask1 = torch.mul(mask1, mask1_)
+            mask1 = torch.sqrt(mask1)
+        else:
+            mask1 = self.residual8_blocks(out)
 
         masks = []
         masks.append(mask1)
@@ -357,7 +417,7 @@ def test():
 
     f = torch.randn(3, 128, 248, 216).float().to(device)
     soft_mask = SoftMask(128, [128, 128, 256]).to(device)
-    masks = soft_mask(f)
+    masks = soft_mask(f, 4)
     print(masks[0].shape)
     print(masks[1].shape)
     print(masks[2].shape)

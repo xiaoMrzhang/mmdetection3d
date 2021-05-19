@@ -12,8 +12,8 @@ from .single_stage import SingleStage3DDetector
 from mmdet3d.core.visualizer.show_result import kitti_vis, center_to_corner_box2d
 
 @DETECTORS.register_module()
-class VoxelNet(SingleStage3DDetector):
-    r"""`VoxelNet <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
+class VoxelNetPillar(SingleStage3DDetector):
+    r"""`VoxelNetPillar <https://arxiv.org/abs/1711.06396>`_ for 3D detection."""
 
     def __init__(self,
                  voxel_layer,
@@ -25,7 +25,7 @@ class VoxelNet(SingleStage3DDetector):
                  train_cfg=None,
                  test_cfg=None,
                  pretrained=None):
-        super(VoxelNet, self).__init__(
+        super(VoxelNetPillar, self).__init__(
             backbone=backbone,
             neck=neck,
             bbox_head=bbox_head,
@@ -37,26 +37,24 @@ class VoxelNet(SingleStage3DDetector):
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
 
-    def extract_feat(self, points, img_metas, bev_seg_image=None):
+    def extract_feat(self, points, img_metas):
         """Extract features from points."""
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        heatmap = self.generate_gaussion_heatmap(x.size(), coors)
-        if bev_seg_image is not None:
-            heatmap[torch.from_numpy(bev_seg_image) == 0] = 0
-            import pdb;pdb.set_trace()
-        x = self.backbone(x)
-        
+        # self.heatmap = self.generate_gaussion_heatmap(x.size(), coors, scale=1)
+        x, masks = self.backbone(x)
+        self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors)
+
         # This for cfa module
         # x = self.backbone(x, voxel_features, coors)
         # voxel_context = self.cfa(voxel_features, coors) 这部分写到backbone里面？
 
         # x = torch.cat([x, voxel_context], dim=1) 这部分写到neck里面？
         if self.with_neck:
-            x = self.neck(x, bev_seg_image)
-        return x
+            x = self.neck(x)
+        return x, masks
 
     @torch.no_grad()
     @force_fp32()
@@ -102,11 +100,17 @@ class VoxelNet(SingleStage3DDetector):
         segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
                                 vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
                                 boxes=gt_bboxes_3d)
-        x = self.extract_feat(points, img_metas, segmask_maps)
+        x, masks = self.extract_feat(points, img_metas)
+
+        if segmask_maps is not None:
+            heatmap_seg = self.heatmap * torch.from_numpy(segmask_maps)
+            import pdb;pdb.set_trace()
+            heatmap_seg = heatmap_seg.to(x[0].device).unsqueeze(1)
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        hm_loss = self.backbone.loss(masks[0], heatmap_seg)
         # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         # losses = self.bbox_head.loss(*loss_inputs)
         return losses
@@ -155,7 +159,7 @@ class VoxelNet(SingleStage3DDetector):
 
         return [merged_bboxes]
 
-    def generate_mask(self, points, vis_voxel_size, vis_point_range, boxes, scale=1):
+    def generate_mask(self, points, vis_voxel_size, vis_point_range, boxes, scale=2):
         """generate segmask by given pointcloud and bounding boxes
 
         Args:
@@ -181,26 +185,27 @@ class VoxelNet(SingleStage3DDetector):
                 current_bbox[:, [0, 1]], current_bbox[:, [3, 4]], current_bbox[:, 6])
             bev_corners -= vis_point_range[:2]
             bev_corners *= np.array(
-                segmask_maps.shape[1:3])[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
+                (w, h))[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
             segmask = np.zeros((w, h, 3))
             segmask = cv2.drawContours(segmask, bev_corners.astype(np.int), -1, 255, -1)
-            # segmask = cv2.resize(segmask, (int(segmask.shape[1]/2), int(segmask.shape[0]/2)), interpolation=cv2.INTER_NEAREST)
+            segmask = cv2.resize(segmask, (int(segmask.shape[1]/2), int(segmask.shape[0]/2)), interpolation=cv2.INTER_NEAREST)
             segmask_maps[i] = segmask[:, :, 0] / 255.
-        # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[0])
+        # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[1]*255)
         # bev_map = kitti_vis(points[0].data.cpu().numpy(), vis_voxel_size=vis_voxel_size,
         #                     vis_point_range=vis_point_range, boxes=boxes[0].tensor.detach().cpu().numpy())
         # import pdb;pdb.set_trace()
         return segmask_maps
 
-    def generate_gaussion_heatmap(self, heatmap_size, coors_gpu):
+    def generate_gaussion_heatmap(self, heatmap_size, coors_gpu, scale=2):
         coors = coors_gpu.cpu()
         heatmap = torch.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
         for i in range(coors.size()[0]):
             batch_idx = coors[i][0]
-            center = coors[i][-2:]
+            center = coors[i][-2:] // scale
             radius = gaussian_radius((torch.tensor(heatmap_size[2]), torch.tensor(heatmap_size[3])), min_overlap=0.1)
             # radius = max(2, int(radius))
-            radius = 2
+            radius = 5
             draw_heatmap_gaussian(heatmap[batch_idx], center, radius)
-        # cv2.imwrite("/home/zhangxiao/test_2.png", (heatmap[0] * 255).numpy().astype(np.uint8))
+        # cv2.imwrite("/home/zhangxiao/test_2.png", (self.heatmap[1] * 255).numpy().astype(np.uint8))
+        # cv2.imwrite("/home/zhangxiao/test_2.png", (heatmap_seg[1] * 255).numpy().astype(np.uint8))
         return heatmap

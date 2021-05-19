@@ -4,7 +4,7 @@ from torch.nn import functional as F
 import numpy as np
 import cv2
 
-from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
+from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d, draw_heatmap_gaussian, gaussian_radius
 from mmdet3d.ops import Voxelization
 from mmdet.models import DETECTORS
 from .. import builder

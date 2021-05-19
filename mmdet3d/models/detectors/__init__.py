@@ -12,10 +12,11 @@ from .ssd3dnet import SSD3DNet
 from .votenet import VoteNet
 from .voxelnet import VoxelNet
 from .voxelnet_ran import VoxelNet_RAN
+from .voxelnet_pillar import VoxelNetPillar
 
 __all__ = [
     'Base3DDetector', 'VoxelNet', 'DynamicVoxelNet', 'MVXTwoStageDetector',
     'DynamicMVXFasterRCNN', 'MVXFasterRCNN', 'PartA2', 'VoteNet', 'H3DNet',
     'CenterPoint', 'SSD3DNet', 'ImVoteNet', 'SingleStageMono3DDetector',
-    'FCOSMono3D', 'VoxelNet_RAN'
+    'FCOSMono3D', 'VoxelNet_RAN', 'VoxelNetPillar'
 ]

@@ -105,4 +105,29 @@ class SECOND_RAN(nn.Module):
             # x = (1 + masks[i]) * x
             x = torch.mul(x, masks[i]) + x
             outs.append(x)
-        return tuple(outs)
+        return tuple([outs, masks])
+    
+    def loss(self, prediction, target):
+        self.alpha = 2
+        self.beta = 4
+        positive_index = target.eq(1).float()
+        negative_index = target.lt(1).float()
+        import pdb;pdb.set_trace()
+
+        negative_weights = torch.pow(1 - target, self.beta)
+        loss = 0.
+        positive_loss = torch.log(prediction) \
+                        * torch.pow(1 - prediction, self.alpha) * positive_index
+        negative_loss = torch.log(1 - prediction) \
+                        * torch.pow(prediction, self.alpha) * negative_weights * negative_index
+
+        num_positive = positive_index.float().sum()
+        positive_loss = positive_loss.sum()
+        negative_loss = negative_loss.sum()
+
+        if num_positive == 0:
+            loss -= negative_loss
+        else:
+            loss -= (positive_loss + negative_loss) / num_positive
+
+        return loss
