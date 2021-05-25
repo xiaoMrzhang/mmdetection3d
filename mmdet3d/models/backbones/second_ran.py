@@ -1,7 +1,8 @@
 from mmcv.cnn import build_conv_layer, build_norm_layer
-from mmcv.runner import load_checkpoint
+from mmcv.runner import load_checkpoint, force_fp32
 from torch import nn as nn
 import torch
+import numpy as np
 
 from mmdet.models import BACKBONES
 from mmdet3d.utils.soft_mask import SoftMask
@@ -71,7 +72,7 @@ class SECOND_RAN(nn.Module):
                 padding=1)
         first_bn = build_norm_layer(norm_cfg, out_channels[0])[1]
         first_relu = nn.ReLU(inplace=True)
-        soft_mask = SoftMask(in_channels, out_channels)
+        soft_mask = SoftMask(in_channels, out_channels, out_type=2)
         self.soft_mask_block = nn.Sequential(first_layer_conv, first_bn, first_relu, soft_mask)
 
     def init_weights(self, pretrained=None):
@@ -106,14 +107,20 @@ class SECOND_RAN(nn.Module):
             x = torch.mul(x, masks[i]) + x
             outs.append(x)
         return tuple([outs, masks])
-    
-    def loss(self, prediction, target):
+
+    @force_fp32(apply_to=('prediction'))
+    def focal_loss(self, prediction, target):
+        loss_dict = dict()
         self.alpha = 2
         self.beta = 4
+
+        save_mask = np.zeros((prediction.size(0), prediction.size(2)*2, prediction.size(3)*2))
+        save_mask[:, 0:prediction.size(2), 0:prediction.size(3)] = prediction[:, 0].cpu().data.numpy()
+        save_mask[:, prediction.size(2):, prediction.size(3):] = target[:, 0].cpu().data.numpy()
+        np.save("/home/zhangxiao/tmp/" + "1.npy", save_mask)
+
         positive_index = target.eq(1).float()
         negative_index = target.lt(1).float()
-        import pdb;pdb.set_trace()
-
         negative_weights = torch.pow(1 - target, self.beta)
         loss = 0.
         positive_loss = torch.log(prediction) \
@@ -129,5 +136,39 @@ class SECOND_RAN(nn.Module):
             loss -= negative_loss
         else:
             loss -= (positive_loss + negative_loss) / num_positive
+        loss_dict["loss_heatmap"] = loss
 
-        return loss
+        # dice loss
+        intersection = (target.eq(1).float() * prediction).sum(axis=[1,2,3])
+        dice_score = (2 * intersection + 1) / (target.eq(1).float().sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        dice_loss = 1 - torch.mean(dice_score, axis=0)
+        loss_dict["loss_dice"] = dice_loss
+        if torch.isnan(loss) or torch.isnan(dice_loss):
+            import pdb;pdb.set_trace()
+
+        return loss_dict
+
+    @force_fp32(apply_to=('prediction'))
+    def loss(self, prediction, target):
+        positive_index = target.eq(1).float()
+        loss = 0.
+        loss_dict = dict()
+
+        positive_loss = torch.log(prediction) * positive_index
+        negative_loss = torch.log(1-prediction) * (1 - positive_index)
+        num_positive = positive_index.float().sum()
+        num_negative = (1 - positive_index).float().sum()
+        positive_loss = positive_loss.sum()
+        negative_loss = negative_loss.sum()
+
+        bec_loss = -(positive_loss / (num_positive+1) + negative_loss / (num_negative+1))
+
+        intersection = (target * prediction).sum(axis=[1,2,3])
+        dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        dice_loss = 1 - dice_score.mean()
+
+        loss_dict["loss_heatmap"] = bec_loss
+        loss_dict["loss_dice"] = dice_loss
+        if torch.isnan(bec_loss) or torch.isnan(dice_loss):
+            import pdb;pdb.set_trace()
+        return loss_dict

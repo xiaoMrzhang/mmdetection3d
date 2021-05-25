@@ -2,6 +2,7 @@ import torch
 from mmcv.runner import force_fp32
 from torch.nn import functional as F
 import numpy as np
+import numba
 import cv2
 
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d, draw_heatmap_gaussian, gaussian_radius
@@ -37,21 +38,21 @@ class VoxelNetPillar(SingleStage3DDetector):
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
 
-    def extract_feat(self, points, img_metas):
+    def extract_feat(self, points, img_metas, segmask_maps=None):
         """Extract features from points."""
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        # self.heatmap = self.generate_gaussion_heatmap(x.size(), coors, scale=1)
         x, masks = self.backbone(x)
-        self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors)
+        if segmask_maps is not None:
+            # self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors, segmask_maps)
+            gaussian = self.gaussian_2d((2 * 6 + 1, 2 * 6 + 1), sigma=6/6)
+            self.heatmap = generate_gaussion_heatmap_array(np.array(masks[0].size()),
+                                                            coors.cpu().numpy(),
+                                                            segmask_maps, gaussian)
+            self.heatmap = torch.from_numpy(self.heatmap)
 
-        # This for cfa module
-        # x = self.backbone(x, voxel_features, coors)
-        # voxel_context = self.cfa(voxel_features, coors) 这部分写到backbone里面？
-
-        # x = torch.cat([x, voxel_context], dim=1) 这部分写到neck里面？
         if self.with_neck:
             x = self.neck(x)
         return x, masks
@@ -100,17 +101,20 @@ class VoxelNetPillar(SingleStage3DDetector):
         segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
                                 vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
                                 boxes=gt_bboxes_3d)
-        x, masks = self.extract_feat(points, img_metas)
+        x, masks = self.extract_feat(points, img_metas, segmask_maps)
 
         if segmask_maps is not None:
-            heatmap_seg = self.heatmap * torch.from_numpy(segmask_maps)
-            import pdb;pdb.set_trace()
-            heatmap_seg = heatmap_seg.to(x[0].device).unsqueeze(1)
-        outs = self.bbox_head(x)
-        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        losses = self.bbox_head.loss(
-            *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        hm_loss = self.backbone.loss(masks[0], heatmap_seg)
+            heatmap_seg = self.heatmap.to(x[0].device).unsqueeze(1)
+        # outs = self.bbox_head(x)
+        # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+        # losses = self.bbox_head.loss(
+        #     *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        losses = self.backbone.focal_loss(masks[0], heatmap_seg)
+        # losses.update(hm_loss)
+
+        # import pdb;pdb.set_trace()
+        # np.save("/home/zhangxiao/tmp/" + "1.npy", masks[0][0].cpu().data.numpy())
+
         # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         # losses = self.bbox_head.loss(*loss_inputs)
         return losses
@@ -121,7 +125,8 @@ class VoxelNetPillar(SingleStage3DDetector):
         # segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
         #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
         #                         boxes=gt_bboxes_3d)
-        x = self.extract_feat(points, img_metas)
+        x, masks = self.extract_feat(points, img_metas)
+        # import pdb;pdb.set_trace()
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
@@ -196,16 +201,110 @@ class VoxelNetPillar(SingleStage3DDetector):
         # import pdb;pdb.set_trace()
         return segmask_maps
 
-    def generate_gaussion_heatmap(self, heatmap_size, coors_gpu, scale=2):
+    def generate_gaussion_heatmap(self, heatmap_size, coors_gpu, segmask_maps, scale=2):
         coors = coors_gpu.cpu()
         heatmap = torch.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
+        radius = 5
+        gaussian = self.gaussian_2d((2 * radius + 1, 2 * radius + 1), sigma=radius/6)
         for i in range(coors.size()[0]):
             batch_idx = coors[i][0]
             center = coors[i][-2:] // scale
-            radius = gaussian_radius((torch.tensor(heatmap_size[2]), torch.tensor(heatmap_size[3])), min_overlap=0.1)
-            # radius = max(2, int(radius))
-            radius = 5
-            draw_heatmap_gaussian(heatmap[batch_idx], center, radius)
+            if segmask_maps[batch_idx, center[0], center[1]] == 0:
+                continue
+            # draw_heatmap_gaussian(heatmap[batch_idx], center, radius)
+            self.draw_heatmap_gaussian(heatmap[batch_idx], center, radius, gaussian)
         # cv2.imwrite("/home/zhangxiao/test_2.png", (self.heatmap[1] * 255).numpy().astype(np.uint8))
-        # cv2.imwrite("/home/zhangxiao/test_2.png", (heatmap_seg[1] * 255).numpy().astype(np.uint8))
+        # cv2.imwrite("/home/zhangxiao/test_1.png", (heatmap[1] * 255).numpy().astype(np.uint8))
         return heatmap
+
+
+
+    def gaussian_2d(self, shape, sigma=1):
+        """Generate gaussian map.
+
+        Args:
+            shape (list[int]): Shape of the map.
+            sigma (float): Sigma to generate gaussian map.
+                Defaults to 1.
+
+        Returns:
+            np.ndarray: Generated gaussian map.
+        """
+        m, n = [(ss - 1.) / 2. for ss in shape]
+        y, x = np.ogrid[-m:m + 1, -n:n + 1]
+
+        h = np.exp(-(x * x + y * y) / (2 * sigma * sigma))
+        h[h < np.finfo(h.dtype).eps * h.max()] = 0
+        return h
+
+    def draw_heatmap_gaussian(self, heatmap, center, radius, gaussian, k=1):
+        """Get gaussian masked heatmap.
+
+        Args:
+            heatmap (torch.Tensor): Heatmap to be masked.
+            center (torch.Tensor): Center coord of the heatmap.
+            radius (int): Radius of gausian.
+            K (int): Multiple of masked_gaussian. Defaults to 1.
+
+        Returns:
+            torch.Tensor: Masked heatmap.
+        """
+
+        x, y = int(center[0]), int(center[1])
+
+        height, width = heatmap.shape[0:2]
+
+        left, right = min(x, radius), min(width - x, radius + 1)
+        top, bottom = min(y, radius), min(height - y, radius + 1)
+
+        masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+        masked_gaussian = torch.from_numpy(
+            gaussian[radius - top:radius + bottom,
+                    radius - left:radius + right]).to(heatmap.device,
+                                                    torch.float32)
+        if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
+            torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+        return heatmap
+
+
+def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian, scale=2):
+    heatmap = np.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
+    radius = 6
+    for i in range(coors.shape[0]):
+        batch_idx = coors[i][0]
+        center = coors[i][-2:][::-1] // scale
+        if segmask_maps[batch_idx, center[1], center[0]] == 0:
+            continue
+        draw_heatmap_gaussian_array(heatmap[batch_idx], center, radius, gaussian)
+    # cv2.imwrite("/home/zhangxiao/test_2.png", (heatmap[1] * 255).astype(np.uint8))
+    # cv2.imwrite("/home/zhangxiao/test_1.png", (segmask_maps[3] * 255).astype(np.uint8))
+    # cv2.imwrite("/home/zhangxiao/test_3.png", (segmask_maps[3] * heatmap[3] * 255).astype(np.uint8))
+    return heatmap
+
+# @numba.jit(nopython=True)
+def draw_heatmap_gaussian_array(heatmap, center, radius, gaussian, k=1):
+    """Get gaussian masked heatmap.
+
+    Args:
+        heatmap (torch.Tensor): Heatmap to be masked.
+        center (torch.Tensor): Center coord of the heatmap.
+        radius (int): Radius of gausian.
+        K (int): Multiple of masked_gaussian. Defaults to 1.
+
+    Returns:
+        torch.Tensor: Masked heatmap.
+    """
+
+    x, y = int(center[0]), int(center[1])
+
+    height, width = heatmap.shape[0:2]
+
+    left, right = min(x, radius), min(width - x, radius + 1)
+    top, bottom = min(y, radius), min(height - y, radius + 1)
+
+    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+    masked_gaussian = gaussian[radius - top:radius + bottom,
+                                radius - left:radius + right]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
