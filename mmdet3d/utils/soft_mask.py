@@ -20,9 +20,10 @@ class SoftMask(nn.Module):
 
     # input size is 248*216
     def __init__(self, in_channels=128, out_channels=[128, 128, 256], size1=(248, 216), \
-                 size2=(124, 108), size3=(62, 54)):
+                 size2=(124, 108), size3=(62, 54), out_type=1):
         super(SoftMask, self).__init__()
 
+        self.type = out_type
         self.first_residual_blocks = ResidualBlock(in_channels, out_channels[0])
         self.mpool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         # 124*108
@@ -101,7 +102,7 @@ class SoftMask(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x, type=1):
+    def forward(self, x):
         """Forward function.
         
         Args:
@@ -126,12 +127,12 @@ class SoftMask(nn.Module):
         out_residual3 = self.residual3_blocks(out_mpool3)
         out = self.interpolation3(out_residual3) + out_skip2_connection        
         # 62*54
-        if type == 1:
+        if self.type == 1:
             mask3 = self.residual6_blocks(out)
-        elif type == 2:
+        elif self.type == 2:
             mask3 = self.binary_cls2(out)
-            mask3 = mask3.repeat(1, out.shape[1], 1, 1)
-        elif type == 3:
+            # mask3 = mask3.repeat(1, out.shape[1], 1, 1)
+        elif self.type == 3:
             mask3 = self.residual6_blocks(out)
             mask3_ = self.binary_cls2(out)
             mask3_ = mask3_.repeat(1, out.shape[1], 1, 1)
@@ -143,12 +144,12 @@ class SoftMask(nn.Module):
         out_residual4 = self.residual4_blocks(out)
         out = self.interpolation2(out_residual4) + out_skip1_connection        
         # 124*108
-        if type == 1:
+        if self.type == 1:
             mask2 = self.residual7_blocks(out)
-        elif type == 2:
+        elif self.type == 2:
             mask2 = self.binary_cls1(out)
-            mask2 = mask2.repeat(1, out.shape[1], 1, 1)
-        elif type == 3:
+            # mask2 = mask2.repeat(1, out.shape[1], 1, 1)
+        elif self.type == 3:
             mask2 = self.residual7_blocks(out)
             mask2_ = self.binary_cls1(out)
             mask2_ = mask2_.repeat(1, out.shape[1], 1, 1)
@@ -160,12 +161,12 @@ class SoftMask(nn.Module):
         out_residual5 = self.residual5_blocks(out)
         out = self.interpolation1(out_residual5) + y
         # 248*216
-        if type == 1:
+        if self.type == 1:
             mask1 = self.residual8_blocks(out)
-        elif type == 2:
+        elif self.type == 2:
             mask1 = self.binary_cls0(out)
-            mask1 = mask1.repeat(1, out.shape[1], 1, 1)
-        elif type == 3:
+            # mask1 = mask1.repeat(1, out.shape[1], 1, 1)
+        elif self.type == 3:
             mask1 = self.residual8_blocks(out)
             mask1_ = self.binary_cls0(out)
             mask1_ = mask1_.repeat(1, out.shape[1], 1, 1)

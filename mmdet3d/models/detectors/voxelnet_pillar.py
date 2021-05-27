@@ -54,7 +54,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             self.heatmap = torch.from_numpy(self.heatmap)
 
         if self.with_neck:
-            x = self.neck(x)
+            x = self.neck(x, masks[0])
         return x, masks
 
     @torch.no_grad()
@@ -105,12 +105,12 @@ class VoxelNetPillar(SingleStage3DDetector):
 
         if segmask_maps is not None:
             heatmap_seg = self.heatmap.to(x[0].device).unsqueeze(1)
-        # outs = self.bbox_head(x)
-        # loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-        # losses = self.bbox_head.loss(
-        #     *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        losses = self.backbone.focal_loss(masks[0], heatmap_seg)
-        # losses.update(hm_loss)
+        outs = self.bbox_head(x)
+        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+        losses = self.bbox_head.loss(
+            *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        hm_loss = self.backbone.loss(masks[0], heatmap_seg)
+        losses.update(hm_loss)
 
         # import pdb;pdb.set_trace()
         # np.save("/home/zhangxiao/tmp/" + "1.npy", masks[0][0].cpu().data.numpy())
@@ -266,7 +266,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
         return heatmap
 
-
+# @numba.jit(nopython=True)
 def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian, scale=2):
     heatmap = np.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
     radius = 6
@@ -306,5 +306,5 @@ def draw_heatmap_gaussian_array(heatmap, center, radius, gaussian, k=1):
     masked_gaussian = gaussian[radius - top:radius + bottom,
                                 radius - left:radius + right]
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
-        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+        heatmap[y - top:y + bottom, x - left:x + right] = np.maximum(masked_heatmap, masked_gaussian * k)
     return heatmap

@@ -103,8 +103,7 @@ class SECOND_RAN(nn.Module):
         outs = []
         for i in range(len(self.blocks)):
             x = self.blocks[i](x)
-            # x = (1 + masks[i]) * x
-            x = torch.mul(x, masks[i]) + x
+            # x = torch.mul(x, masks[i]) + x
             outs.append(x)
         return tuple([outs, masks])
 
@@ -123,9 +122,10 @@ class SECOND_RAN(nn.Module):
         negative_index = target.lt(1).float()
         negative_weights = torch.pow(1 - target, self.beta)
         loss = 0.
-        positive_loss = torch.log(prediction) \
+        # prediction = torch.clamp(prediction, 1e-3, .999)
+        positive_loss = torch.log(prediction + 1e-6) \
                         * torch.pow(1 - prediction, self.alpha) * positive_index
-        negative_loss = torch.log(1 - prediction) \
+        negative_loss = torch.log(1 - prediction + 1e-6) \
                         * torch.pow(prediction, self.alpha) * negative_weights * negative_index
 
         num_positive = positive_index.float().sum()
@@ -154,8 +154,13 @@ class SECOND_RAN(nn.Module):
         loss = 0.
         loss_dict = dict()
 
-        positive_loss = torch.log(prediction) * positive_index
-        negative_loss = torch.log(1-prediction) * (1 - positive_index)
+        save_mask = np.zeros((prediction.size(0), prediction.size(2)*2, prediction.size(3)*2))
+        save_mask[:, 0:prediction.size(2), 0:prediction.size(3)] = prediction[:, 0].cpu().data.numpy()
+        save_mask[:, prediction.size(2):, prediction.size(3):] = target[:, 0].cpu().data.numpy()
+        np.save("/home/zhangxiao/tmp/" + "1.npy", save_mask)
+
+        positive_loss = torch.log(prediction + 1e-6) * positive_index
+        negative_loss = torch.log(1 - prediction + 1e-6) * (1 - positive_index)
         num_positive = positive_index.float().sum()
         num_negative = (1 - positive_index).float().sum()
         positive_loss = positive_loss.sum()

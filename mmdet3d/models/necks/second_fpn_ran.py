@@ -116,12 +116,14 @@ class SECONDFPN_RAN(nn.Module):
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
         if seg_mask is None:
             ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
-        else:
+        elif len(seg_mask) == 3:
             # ras = [spital(seg_mask[i]) for i, spital in enumerate(self.spitals)]
             ras = [seg_mask[0],
                    F.interpolate(seg_mask[1], scale_factor=2, mode='bilinear'),
                    F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear')]
             ras = [channel_block(ras[i]) for i, channel_block in enumerate(self.channel_blocks)]
+        else:
+            ras = [seg_mask]
 
         if len(ups) > 1:
             out = torch.cat(ups, dim=1)
