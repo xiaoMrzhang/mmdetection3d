@@ -54,7 +54,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             self.heatmap = torch.from_numpy(self.heatmap)
 
         if self.with_neck:
-            x = self.neck(x, masks[0])
+            x = self.neck(x, masks[1:])
         return x, masks
 
     @torch.no_grad()
@@ -109,14 +109,18 @@ class VoxelNetPillar(SingleStage3DDetector):
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        hm_loss = self.backbone.loss(masks[0], heatmap_seg)
-        losses.update(hm_loss)
-
-        # import pdb;pdb.set_trace()
-        # np.save("/home/zhangxiao/tmp/" + "1.npy", masks[0][0].cpu().data.numpy())
-
         # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         # losses = self.bbox_head.loss(*loss_inputs)
+
+        hm_loss = self.backbone.focal_loss(masks[0], heatmap_seg)
+        losses.update(hm_loss)
+        if np.random.rand() > 0.9:
+            for i in range(len(masks)):
+                save_mask = np.zeros((masks[i].size(0), masks[i].size(1), masks[i].size(2)*2, masks[i].size(3)*2))
+                save_mask[:, :, 0:masks[i].size(2), 0:masks[i].size(3)] = masks[i].cpu().data.numpy()
+                if heatmap_seg.size() == masks[i].size():
+                    save_mask[:, :, masks[i].size(2):, masks[i].size(3):] = heatmap_seg.cpu().data.numpy()
+                np.save("/home/zhangxiao/tmp/" + str(i) + ".npy", save_mask)
         return losses
 
     def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None,
@@ -266,7 +270,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             torch.max(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
         return heatmap
 
-# @numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian, scale=2):
     heatmap = np.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
     radius = 6
@@ -281,7 +285,7 @@ def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian,
     # cv2.imwrite("/home/zhangxiao/test_3.png", (segmask_maps[3] * heatmap[3] * 255).astype(np.uint8))
     return heatmap
 
-# @numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def draw_heatmap_gaussian_array(heatmap, center, radius, gaussian, k=1):
     """Get gaussian masked heatmap.
 
@@ -306,5 +310,6 @@ def draw_heatmap_gaussian_array(heatmap, center, radius, gaussian, k=1):
     masked_gaussian = gaussian[radius - top:radius + bottom,
                                 radius - left:radius + right]
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:
-        heatmap[y - top:y + bottom, x - left:x + right] = np.maximum(masked_heatmap, masked_gaussian * k)
+        masked_heatmap = np.maximum(masked_heatmap, masked_gaussian * k)
+        heatmap[y - top:y + bottom, x - left:x + right] = masked_heatmap
     return heatmap

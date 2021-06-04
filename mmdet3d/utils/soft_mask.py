@@ -95,6 +95,7 @@ class SoftMask(nn.Module):
         )
 
         self.binary_cls0 = nn.Sequential(
+            nn.ReLU(inplace=True),
             nn.Conv2d(out_channels[0], out_channels[0], kernel_size=1, stride=1, bias = False),
             nn.BatchNorm2d(out_channels[0]),
             nn.ReLU(inplace=True),
@@ -126,6 +127,8 @@ class SoftMask(nn.Module):
         # 31*27
         out_residual3 = self.residual3_blocks(out_mpool3)
         out = self.interpolation3(out_residual3) + out_skip2_connection        
+
+        out_residual4 = self.residual4_blocks(out)
         # 62*54
         if self.type == 1:
             mask3 = self.residual6_blocks(out)
@@ -139,10 +142,11 @@ class SoftMask(nn.Module):
             mask3 = torch.mul(mask3, mask3_)
             mask3 = torch.sqrt(mask3)
         else:
-            mask3 = self.residual6_blocks(out)
+            mask3 = out_residual4
 
-        out_residual4 = self.residual4_blocks(out)
         out = self.interpolation2(out_residual4) + out_skip1_connection        
+
+        out_residual5 = self.residual5_blocks(out)
         # 124*108
         if self.type == 1:
             mask2 = self.residual7_blocks(out)
@@ -156,9 +160,8 @@ class SoftMask(nn.Module):
             mask2 = torch.mul(mask2, mask2_)
             mask2 = torch.sqrt(mask2)
         else:
-            mask2 = self.residual7_blocks(out)
+            mask2 = out_residual5
 
-        out_residual5 = self.residual5_blocks(out)
         out = self.interpolation1(out_residual5) + y
         # 248*216
         if self.type == 1:
@@ -174,9 +177,10 @@ class SoftMask(nn.Module):
             mask1 = torch.sqrt(mask1)
         else:
             mask1 = self.residual8_blocks(out)
+            mask1 = [self.binary_cls0(mask1), mask1]
 
         masks = []
-        masks.append(mask1)
+        masks.extend(mask1)
         masks.append(mask2)
         masks.append(mask3)
 

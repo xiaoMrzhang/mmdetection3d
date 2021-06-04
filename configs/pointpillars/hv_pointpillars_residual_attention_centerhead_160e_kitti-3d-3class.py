@@ -73,11 +73,11 @@ data = dict(
     train=dict(dataset=dict(pipeline=train_pipeline, classes=class_names)),
     val=dict(pipeline=test_pipeline, classes=class_names),
     test=dict(pipeline=test_pipeline, classes=class_names),
-    samples_per_gpu=12)
+    samples_per_gpu=8)
 
 # In practice PointPillars also uses a different schedule
 # optimizer
-lr = 0.0005
+lr = 0.001
 optimizer = dict(lr=lr)
 # max_norm=35 is slightly better than 10 for PointPillars in the earlier
 # development of the codebase thus we keep the setting. But we does not

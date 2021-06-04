@@ -84,7 +84,8 @@ class SECONDFPN_RAN(nn.Module):
                                       kernel_size=1, stride=1)
             spital = nn.Sequential(conv_1, build_norm_layer(norm_cfg, out_channel)[1], nn.ReLU(inplace=True),
                                   conv_2, nn.Sigmoid())
-            conv_c = build_conv_layer(conv_cfg, in_channels=in_channels[i], out_channels=out_channel,
+            # [64, 64, 128]
+            conv_c = build_conv_layer(conv_cfg, in_channels=[64, 64, 128][i], out_channels=out_channel,
                                       kernel_size=1, stride=1)
             channel_layer = nn.Sequential(conv_c, nn.Sigmoid())
             spitals.append(spital)
@@ -123,14 +124,16 @@ class SECONDFPN_RAN(nn.Module):
                    F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear')]
             ras = [channel_block(ras[i]) for i, channel_block in enumerate(self.channel_blocks)]
         else:
-            ras = [seg_mask]
-
+            if seg_mask.size(2) != ups[0].size(2):
+                scale_factor = ups[0].size(2) / seg_mask.size(2)
+                ras = [F.interpolate(seg_mask, scale_factor=scale_factor, mode='bilinear')]
+            else:
+                ras = [seg_mask]
         if len(ups) > 1:
             out = torch.cat(ups, dim=1)
             att = torch.cat(ras, dim=1)
         else:
             out = ups[0]
             att = ras[0]
-        
         out = torch.mul(out, att) + out
         return [out]

@@ -72,7 +72,7 @@ class SECOND_RAN(nn.Module):
                 padding=1)
         first_bn = build_norm_layer(norm_cfg, out_channels[0])[1]
         first_relu = nn.ReLU(inplace=True)
-        soft_mask = SoftMask(in_channels, out_channels, out_type=2)
+        soft_mask = SoftMask(in_channels, out_channels, out_type=4)
         self.soft_mask_block = nn.Sequential(first_layer_conv, first_bn, first_relu, soft_mask)
 
     def init_weights(self, pretrained=None):
@@ -94,11 +94,12 @@ class SECOND_RAN(nn.Module):
             tuple[torch.Tensor]: Multi-scale features.
         """
         masks = self.soft_mask_block(x)
+        # import pdb;pdb.set_trace()
         # save_feature = True
         # if save_feature:
         #     import numpy as np
         #     for i in range(len(masks)):
-        #         save_path = "/home/zhangxiao/tmp/" + str(i) + ".npy" 
+        #         save_path = "/home/zhangxiao/tmp/" + str(i+2) + ".npy" 
         #         np.save(save_path, masks[i][0].cpu().data.numpy())
         outs = []
         for i in range(len(self.blocks)):
@@ -112,11 +113,6 @@ class SECOND_RAN(nn.Module):
         loss_dict = dict()
         self.alpha = 2
         self.beta = 4
-
-        save_mask = np.zeros((prediction.size(0), prediction.size(2)*2, prediction.size(3)*2))
-        save_mask[:, 0:prediction.size(2), 0:prediction.size(3)] = prediction[:, 0].cpu().data.numpy()
-        save_mask[:, prediction.size(2):, prediction.size(3):] = target[:, 0].cpu().data.numpy()
-        np.save("/home/zhangxiao/tmp/" + "1.npy", save_mask)
 
         positive_index = target.eq(1).float()
         negative_index = target.lt(1).float()
@@ -139,12 +135,12 @@ class SECOND_RAN(nn.Module):
         loss_dict["loss_heatmap"] = loss
 
         # dice loss
-        intersection = (target.eq(1).float() * prediction).sum(axis=[1,2,3])
-        dice_score = (2 * intersection + 1) / (target.eq(1).float().sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
-        dice_loss = 1 - torch.mean(dice_score, axis=0)
-        loss_dict["loss_dice"] = dice_loss
-        if torch.isnan(loss) or torch.isnan(dice_loss):
-            import pdb;pdb.set_trace()
+        # intersection = (target.eq(1).float() * prediction).sum(axis=[1,2,3])
+        # dice_score = (2 * intersection + 1) / (target.eq(1).float().sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        # dice_loss = 1 - torch.mean(dice_score, axis=0)
+        # loss_dict["loss_dice"] = dice_loss
+        # if torch.isnan(loss) or torch.isnan(dice_loss):
+        #     import pdb;pdb.set_trace()
 
         return loss_dict
 
@@ -154,11 +150,6 @@ class SECOND_RAN(nn.Module):
         loss = 0.
         loss_dict = dict()
 
-        save_mask = np.zeros((prediction.size(0), prediction.size(2)*2, prediction.size(3)*2))
-        save_mask[:, 0:prediction.size(2), 0:prediction.size(3)] = prediction[:, 0].cpu().data.numpy()
-        save_mask[:, prediction.size(2):, prediction.size(3):] = target[:, 0].cpu().data.numpy()
-        np.save("/home/zhangxiao/tmp/" + "1.npy", save_mask)
-
         positive_loss = torch.log(prediction + 1e-6) * positive_index
         negative_loss = torch.log(1 - prediction + 1e-6) * (1 - positive_index)
         num_positive = positive_index.float().sum()
@@ -167,13 +158,11 @@ class SECOND_RAN(nn.Module):
         negative_loss = negative_loss.sum()
 
         bec_loss = -(positive_loss / (num_positive+1) + negative_loss / (num_negative+1))
-
-        intersection = (target * prediction).sum(axis=[1,2,3])
-        dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
-        dice_loss = 1 - dice_score.mean()
-
         loss_dict["loss_heatmap"] = bec_loss
-        loss_dict["loss_dice"] = dice_loss
-        if torch.isnan(bec_loss) or torch.isnan(dice_loss):
-            import pdb;pdb.set_trace()
+
+        # intersection = (target * prediction).sum(axis=[1,2,3])
+        # dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        # dice_loss = 1 - dice_score.mean()
+        # loss_dict["loss_dice"] = dice_loss
+
         return loss_dict

@@ -1,6 +1,6 @@
 voxel_size = [0.16, 0.16, 4]
 model = dict(
-    type='VoxelNet',
+    type='VoxelNetPillar',
     voxel_layer=dict(
         max_num_points=32,
         point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1],
@@ -22,7 +22,7 @@ model = dict(
         layer_strides=[2, 2, 2],
         out_channels=[64, 128, 256]),
     neck=dict(
-        type='SECONDFPN',
+        type='SECONDFPN_RAN',
         in_channels=[64, 128, 256],
         # upsample_strides=[1, 2, 4],
         upsample_strides=[0.5, 1, 2],
