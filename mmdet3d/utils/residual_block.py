@@ -16,11 +16,12 @@ class ResidualBlock(nn.Module):
         output_channels (int): Output channels.
     """
 
-    def __init__(self, input_channels, output_channels, stride=1):
+    def __init__(self, input_channels, output_channels, stride=1, use_relu=True):
         super(ResidualBlock, self).__init__()
         self.input_channels = input_channels
         self.output_channels = output_channels
         self.stride = stride
+        self.use_relu = use_relu
 
         self.conv1 = nn.Conv2d(input_channels, output_channels // 4, 1, stride=1, bias = False)
         self.bn1 = nn.BatchNorm2d(output_channels // 4)
@@ -61,7 +62,8 @@ class ResidualBlock(nn.Module):
             residual = self.conv4(x)
 
         out += residual
-        out = self.relu(out)
+        if self.use_relu:
+            out = self.relu(out)
 
         return out
 
@@ -77,7 +79,7 @@ def test():
 
     residual = ResidualBlock(32, 64).to(device)
     r = residual(x)
-
+    import pdb;pdb.set_trace()
     print(r.shape)
 
 

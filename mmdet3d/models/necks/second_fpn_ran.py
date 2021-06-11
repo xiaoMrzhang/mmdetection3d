@@ -87,7 +87,8 @@ class SECONDFPN_RAN(nn.Module):
             # [64, 64, 128]
             conv_c = build_conv_layer(conv_cfg, in_channels=[64, 64, 128][i], out_channels=out_channel,
                                       kernel_size=1, stride=1)
-            channel_layer = nn.Sequential(conv_c, nn.Sigmoid())
+            # channel_layer = nn.Sequential(nn.Sigmoid())
+            channel_layer = nn.Sequential(nn.Softmax(-1))
             spitals.append(spital)
             channel_blocks.append(channel_layer)
 
@@ -115,14 +116,15 @@ class SECONDFPN_RAN(nn.Module):
         """
         assert len(x) == len(self.in_channels)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
+        b, c, h, w = ups[0].size()
         if seg_mask is None:
             ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
         elif len(seg_mask) == 3:
             # ras = [spital(seg_mask[i]) for i, spital in enumerate(self.spitals)]
-            ras = [seg_mask[0],
-                   F.interpolate(seg_mask[1], scale_factor=2, mode='bilinear'),
-                   F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear')]
-            ras = [channel_block(ras[i]) for i, channel_block in enumerate(self.channel_blocks)]
+            ras = [seg_mask[0].view(b, c, h*w),
+                   F.interpolate(seg_mask[1], scale_factor=2, mode='bilinear').view(b, c, h*w),
+                   F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear').view(b, c, h*w)]
+            ras = [channel_block(ras[i]).view(b, c, h, w) for i, channel_block in enumerate(self.channel_blocks)]
         else:
             if seg_mask.size(2) != ups[0].size(2):
                 scale_factor = ups[0].size(2) / seg_mask.size(2)

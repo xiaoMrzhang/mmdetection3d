@@ -45,14 +45,14 @@ class SoftMask(nn.Module):
         )
 
         self.interpolation3 = nn.UpsamplingBilinear2d(size=size3)
-        self.residual4_blocks = ResidualBlock(out_channels[2], out_channels[1])
+        self.residual4_blocks = ResidualBlock(out_channels[2], out_channels[1], use_relu=False)
         # 62*54
 
-        self.interpolation2 = nn.UpsamplingBilinear2d(size=size2)
-        self.residual5_blocks = ResidualBlock(out_channels[1], out_channels[0])
+        self.interpolation2 = nn.Sequential(nn.ReLU(inplace=False), nn.UpsamplingBilinear2d(size=size2))
+        self.residual5_blocks = ResidualBlock(out_channels[1], out_channels[0], use_relu=False)
         # 124*108
 
-        self.interpolation1 = nn.UpsamplingBilinear2d(size=size1)
+        self.interpolation1 = nn.Sequential(nn.ReLU(inplace=False), nn.UpsamplingBilinear2d(size=size1))
 
         self.residual6_blocks = nn.Sequential(
             nn.Conv2d(out_channels[2], out_channels[2], kernel_size=1, stride=1, bias = False),
@@ -95,10 +95,10 @@ class SoftMask(nn.Module):
         )
 
         self.binary_cls0 = nn.Sequential(
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Conv2d(out_channels[0], out_channels[0], kernel_size=1, stride=1, bias = False),
             nn.BatchNorm2d(out_channels[0]),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Conv2d(out_channels[0], 1, kernel_size=1, stride=1, bias = False),
             nn.Sigmoid()
         )
@@ -180,7 +180,10 @@ class SoftMask(nn.Module):
             mask1 = [self.binary_cls0(mask1), mask1]
 
         masks = []
-        masks.extend(mask1)
+        if isinstance(mask1, list):
+            masks.extend(mask1)
+        else:
+            masks.append(mask1)
         masks.append(mask2)
         masks.append(mask3)
 
@@ -405,27 +408,29 @@ def test():
     print("Using {} device".format(device))
 
     x = torch.randn(3, 128, 248, 216).float().to(device)
-    print(x.shape)
+    # print(x.shape)
     mask1 = SoftMaskEncoder1(128, 128).to(device)
     m1 = mask1(x)
-    print(m1.shape)
+    # print(m1.shape)
 
     y = torch.randn(3, 64, 124, 108).float().to(device)
     mask2 = SoftMaskEncoder2(64, 128).to(device)
     m2 = mask2(y)
-    print(m2.shape)
+    # print(m2.shape)
 
     z = torch.randn(3, 128, 62, 54).float().to(device)
     mask3 = SoftMaskEncoder3(128, 256).to(device)
     m3 = mask3(z)
-    print(m3.shape)
+    # print(m3.shape)
 
     f = torch.randn(3, 128, 248, 216).float().to(device)
-    soft_mask = SoftMask(128, [128, 128, 256]).to(device)
-    masks = soft_mask(f, 4)
+    soft_mask = SoftMask(128, [128, 128, 128], out_type=4).to(device)
+    masks = soft_mask(f)
+    import pdb;pdb.set_trace()
     print(masks[0].shape)
     print(masks[1].shape)
     print(masks[2].shape)
+    print(masks[3].shape)
 
 
 if __name__ == '__main__':

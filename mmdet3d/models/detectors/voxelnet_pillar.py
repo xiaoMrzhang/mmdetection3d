@@ -114,7 +114,7 @@ class VoxelNetPillar(SingleStage3DDetector):
 
         hm_loss = self.backbone.focal_loss(masks[0], heatmap_seg)
         losses.update(hm_loss)
-        if np.random.rand() > 0.9:
+        if np.random.rand() > 0.93:
             for i in range(len(masks)):
                 save_mask = np.zeros((masks[i].size(0), masks[i].size(1), masks[i].size(2)*2, masks[i].size(3)*2))
                 save_mask[:, :, 0:masks[i].size(2), 0:masks[i].size(3)] = masks[i].cpu().data.numpy()
@@ -206,6 +206,8 @@ class VoxelNetPillar(SingleStage3DDetector):
         return segmask_maps
 
     def generate_gaussion_heatmap(self, heatmap_size, coors_gpu, segmask_maps, scale=2):
+        """generate heatmap
+        """
         coors = coors_gpu.cpu()
         heatmap = torch.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
         radius = 5
@@ -272,6 +274,18 @@ class VoxelNetPillar(SingleStage3DDetector):
 
 @numba.jit(nopython=True)
 def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian, scale=2):
+    """generate gaussiin heatmap
+
+    Args:
+        heatmap_size (numpy array): [b, c , w, h]
+        coors (list): pillar coors
+        segmask_maps (np.ndarray): [description]
+        gaussian (np.ndarray): gaussion heatmap generate by radius
+        scale (int, optional): [description]. Defaults to 2.
+
+    Returns:
+        [np.ndarray]: gaussion heatmap
+    """
     heatmap = np.zeros((heatmap_size[0], heatmap_size[2], heatmap_size[3]))
     radius = 6
     for i in range(coors.shape[0]):
@@ -290,13 +304,13 @@ def draw_heatmap_gaussian_array(heatmap, center, radius, gaussian, k=1):
     """Get gaussian masked heatmap.
 
     Args:
-        heatmap (torch.Tensor): Heatmap to be masked.
-        center (torch.Tensor): Center coord of the heatmap.
+        heatmap (np.ndarray): Heatmap to be masked.
+        center (np.ndarray): Center coord of the heatmap.
         radius (int): Radius of gausian.
         K (int): Multiple of masked_gaussian. Defaults to 1.
 
     Returns:
-        torch.Tensor: Masked heatmap.
+        np.ndarray: Masked heatmap.
     """
 
     x, y = int(center[0]), int(center[1])

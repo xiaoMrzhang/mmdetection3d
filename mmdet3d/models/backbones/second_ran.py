@@ -72,7 +72,7 @@ class SECOND_RAN(nn.Module):
                 padding=1)
         first_bn = build_norm_layer(norm_cfg, out_channels[0])[1]
         first_relu = nn.ReLU(inplace=True)
-        soft_mask = SoftMask(in_channels, out_channels, out_type=4)
+        soft_mask = SoftMask(in_channels, [128, 128, 128], out_type=4)
         self.soft_mask_block = nn.Sequential(first_layer_conv, first_bn, first_relu, soft_mask)
 
     def init_weights(self, pretrained=None):
@@ -135,10 +135,10 @@ class SECOND_RAN(nn.Module):
         loss_dict["loss_heatmap"] = loss
 
         # dice loss
-        # intersection = (target.eq(1).float() * prediction).sum(axis=[1,2,3])
-        # dice_score = (2 * intersection + 1) / (target.eq(1).float().sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        # intersection = (target * prediction).sum(axis=[1,2,3])
+        # dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
         # dice_loss = 1 - torch.mean(dice_score, axis=0)
-        # loss_dict["loss_dice"] = dice_loss
+        # loss_dict["loss_dice"] = dice_loss * 0.2
         # if torch.isnan(loss) or torch.isnan(dice_loss):
         #     import pdb;pdb.set_trace()
 
