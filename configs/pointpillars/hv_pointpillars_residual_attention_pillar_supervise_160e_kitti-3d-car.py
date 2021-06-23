@@ -1,25 +1,44 @@
-_base_ = [
-    '../_base_/models/hv_pointpillars_residual_attention_second_fpn_ran_kitti.py',
-    '../_base_/datasets/kitti-3d-3class.py',
-    '../_base_/schedules/cyclic_40e.py', '../_base_/default_runtime.py'
-]
+# model settings
+_base_ = './hv_pointpillars_residual_attention_pillar_supervise_160e_kitti-3d-3class.py'
 
 point_cloud_range = [0, -39.68, -3, 69.12, 39.68, 1]
+model = dict(
+    bbox_head=dict(
+        type='Anchor3DHead',
+        num_classes=1,
+        anchor_generator=dict(
+            _delete_=True,
+            type='Anchor3DRangeGenerator',
+            ranges=[[0, -39.68, -1.78, 69.12, 39.68, -1.78]],
+            sizes=[[1.6, 3.9, 1.56]],
+            rotations=[0, 1.57],
+            reshape_out=True)),
+    # model training and testing settings
+    train_cfg=dict(
+        _delete_=True,
+        assigner=dict(
+            type='MaxIoUAssigner',
+            iou_calculator=dict(type='BboxOverlapsNearest3D'),
+            pos_iou_thr=0.6,
+            neg_iou_thr=0.45,
+            min_pos_iou=0.45,
+            ignore_iof_thr=-1),
+        allowed_border=0,
+        pos_weight=-1,
+        debug=False))
+
 # dataset settings
+dataset_type = 'KittiDataset'
 data_root = 'data/kitti/'
-class_names = ['Pedestrian', 'Cyclist', 'Car']
-# PointPillars adopted a different sampling strategies among classes
+class_names = ['Car']
 db_sampler = dict(
     data_root=data_root,
     info_path=data_root + 'kitti_dbinfos_train.pkl',
     rate=1.0,
-    prepare=dict(
-        filter_by_difficulty=[-1],
-        filter_by_min_points=dict(Car=5, Pedestrian=10, Cyclist=10)),
-    classes=class_names,
-    sample_groups=dict(Car=15, Pedestrian=10, Cyclist=10))
+    prepare=dict(filter_by_difficulty=[-1], filter_by_min_points=dict(Car=5)),
+    sample_groups=dict(Car=15),
+    classes=class_names)
 
-# PointPillars uses different augmentation hyper parameters
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
     dict(type='LoadAnnotations3D', with_bbox_3d=True, with_label_3d=True),
@@ -66,22 +85,9 @@ test_pipeline = [
 ]
 
 data = dict(
-    train=dict(dataset=dict(pipeline=train_pipeline, classes=class_names)),
+    train=dict(
+        type='RepeatDataset',
+        times=2,
+        dataset=dict(pipeline=train_pipeline, classes=class_names)),
     val=dict(pipeline=test_pipeline, classes=class_names),
-    test=dict(pipeline=test_pipeline, classes=class_names),
-    samples_per_gpu=16)
-
-# In practice PointPillars also uses a different schedule
-# optimizer
-lr = 0.001
-optimizer = dict(lr=lr)
-# max_norm=35 is slightly better than 10 for PointPillars in the earlier
-# development of the codebase thus we keep the setting. But we does not
-# specifically tune this parameter.
-optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
-# Use evaluation interval=2 reduce the number of evaluation timese
-evaluation = dict(interval=2)
-# PointPillars usually need longer schedule than second, we simply double
-# the training schedule. Do remind that since we use RepeatDataset and
-# repeat factor is 2, so we actually train 160 epochs.
-runner = dict(max_epochs=80)
+    test=dict(pipeline=test_pipeline, classes=class_names))

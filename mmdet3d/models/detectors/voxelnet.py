@@ -95,10 +95,10 @@ class VoxelNet(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        # segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
-        #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
-        #                         boxes=gt_bboxes_3d)
-        x = self.extract_feat(points, img_metas)
+        segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                boxes=gt_bboxes_3d)
+        x = self.extract_feat(points, img_metas, segmask_maps)
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
@@ -110,10 +110,10 @@ class VoxelNet(SingleStage3DDetector):
     def simple_test(self, points, img_metas, imgs=None, bev_seg_image=None,
                     rescale=False, gt_bboxes_3d=None):
         """Test function without augmentaiton."""
-        # segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
-        #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
-        #                         boxes=gt_bboxes_3d)
-        x = self.extract_feat(points, img_metas)
+        segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                boxes=gt_bboxes_3d)
+        x = self.extract_feat(points, img_metas, segmask_maps)
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
@@ -164,7 +164,7 @@ class VoxelNet(SingleStage3DDetector):
             return None
         w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1])
         h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0])
-        segmask_maps = np.zeros((len(points), int(w/2), int(h/2)))
+        segmask_maps = np.zeros((len(points), int(w/scale), int(h/scale)))
         # import pdb;pdb.set_trace()
         for i in range(segmask_maps.shape[0]):
             vis_point_range = np.array(vis_point_range)

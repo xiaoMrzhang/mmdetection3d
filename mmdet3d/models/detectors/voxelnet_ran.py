@@ -149,7 +149,7 @@ class VoxelNet_RAN(SingleStage3DDetector):
 
         return [merged_bboxes]
 
-    def generate_mask(self, points, vis_voxel_size, vis_point_range, boxes):
+    def generate_mask(self, points, vis_voxel_size, vis_point_range, boxes, scale=2):
         """generate segmask by given pointcloud and bounding boxes
 
         Args:
@@ -162,7 +162,7 @@ class VoxelNet_RAN(SingleStage3DDetector):
             return None
         w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1])
         h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0])
-        segmask_maps = np.zeros((len(points), int(w/2), int(h/2)))
+        segmask_maps = np.zeros((len(points), int(w/scale), int(h/scale)))
         # import pdb;pdb.set_trace()
         for i in range(segmask_maps.shape[0]):
             vis_point_range = np.array(vis_point_range)
@@ -175,12 +175,12 @@ class VoxelNet_RAN(SingleStage3DDetector):
                 current_bbox[:, [0, 1]], current_bbox[:, [3, 4]], current_bbox[:, 6])
             bev_corners -= vis_point_range[:2]
             bev_corners *= np.array(
-                segmask_maps.shape[1:3])[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
+                (w, h))[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
             segmask = np.zeros((w, h, 3))
             segmask = cv2.drawContours(segmask, bev_corners.astype(np.int), -1, 255, -1)
             segmask = cv2.resize(segmask, (int(segmask.shape[1]/2), int(segmask.shape[0]/2)), interpolation=cv2.INTER_NEAREST)
             segmask_maps[i] = segmask[:, :, 0] / 255.
-        # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[0])
+        # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[1]*255)
         # bev_map = kitti_vis(points[0].data.cpu().numpy(), vis_voxel_size=vis_voxel_size,
         #                     vis_point_range=vis_point_range, boxes=boxes[0].tensor.detach().cpu().numpy())
         # import pdb;pdb.set_trace()
