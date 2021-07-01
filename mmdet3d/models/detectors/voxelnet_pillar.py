@@ -37,24 +37,31 @@ class VoxelNetPillar(SingleStage3DDetector):
         self.voxel_layer = Voxelization(**voxel_layer)
         self.voxel_encoder = builder.build_voxel_encoder(voxel_encoder)
         self.middle_encoder = builder.build_middle_encoder(middle_encoder)
+        self.heatmap = None
 
-    def extract_feat(self, points, img_metas, segmask_maps=None):
+    def extract_feat(self, points, img_metas, gt_bboxes_3d=None):
         """Extract features from points."""
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
         x, masks = self.backbone(x)
-        if segmask_maps is not None:
+
+        if self.with_neck:
+            x, masks = self.neck(x)
+
+        if gt_bboxes_3d is not None and masks is not None:
             # self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors, segmask_maps)
+            scale = 496 // masks[0].size(2)
+            segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                    vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                    boxes=gt_bboxes_3d, scale=scale)
             gaussian = self.gaussian_2d((2 * 6 + 1, 2 * 6 + 1), sigma=6/6)
             self.heatmap = generate_gaussion_heatmap_array(np.array(masks[0].size()),
                                                             coors.cpu().numpy(),
-                                                            segmask_maps, gaussian)
+                                                            segmask_maps, gaussian, scale)
             self.heatmap = torch.from_numpy(self.heatmap)
 
-        if self.with_neck:
-            x = self.neck(x, masks[1:])
         return x, masks
 
     @torch.no_grad()
@@ -98,23 +105,22 @@ class VoxelNetPillar(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
-                                vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
-                                boxes=gt_bboxes_3d)
-        x, masks = self.extract_feat(points, img_metas, segmask_maps)
-
-        if segmask_maps is not None:
+        x, masks = self.extract_feat(points, img_metas, gt_bboxes_3d=gt_bboxes_3d)
+        if self.heatmap is not None:
             heatmap_seg = self.heatmap.to(x[0].device).unsqueeze(1)
+        else:
+            heatmap_seg = None
+
         outs = self.bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         # losses = self.bbox_head.loss(*loss_inputs)
-
-        hm_loss = self.backbone.focal_loss(masks[0], heatmap_seg)
-        losses.update(hm_loss)
-        if np.random.rand() > 0.93:
+        if masks is not None:
+            hm_loss = self.backbone.focal_loss(masks[0], heatmap_seg)
+            losses.update(hm_loss)
+        if np.random.rand() > 1:
             for i in range(len(masks)):
                 save_mask = np.zeros((masks[i].size(0), masks[i].size(1), masks[i].size(2)*2, masks[i].size(3)*2))
                 save_mask[:, :, 0:masks[i].size(2), 0:masks[i].size(3)] = masks[i].cpu().data.numpy()
@@ -130,7 +136,6 @@ class VoxelNetPillar(SingleStage3DDetector):
         #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
         #                         boxes=gt_bboxes_3d)
         x, masks = self.extract_feat(points, img_metas)
-        # import pdb;pdb.set_trace()
         outs = self.bbox_head(x)
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
@@ -182,7 +187,6 @@ class VoxelNetPillar(SingleStage3DDetector):
         w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1])
         h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0])
         segmask_maps = np.zeros((len(points), int(w/scale), int(h/scale)))
-        # import pdb;pdb.set_trace()
         for i in range(segmask_maps.shape[0]):
             vis_point_range = np.array(vis_point_range)
             if isinstance(boxes[i], list):
@@ -197,12 +201,11 @@ class VoxelNetPillar(SingleStage3DDetector):
                 (w, h))[::-1] / (vis_point_range[3:5] - vis_point_range[:2])
             segmask = np.zeros((w, h, 3))
             segmask = cv2.drawContours(segmask, bev_corners.astype(np.int), -1, 255, -1)
-            segmask = cv2.resize(segmask, (int(segmask.shape[1]/2), int(segmask.shape[0]/2)), interpolation=cv2.INTER_NEAREST)
+            segmask = cv2.resize(segmask, (int(segmask.shape[1]/scale), int(segmask.shape[0]/scale)), interpolation=cv2.INTER_NEAREST)
             segmask_maps[i] = segmask[:, :, 0] / 255.
         # cv2.imwrite("/home/zhangxiao/test_2.png", segmask_maps[1]*255)
         # bev_map = kitti_vis(points[0].data.cpu().numpy(), vis_voxel_size=vis_voxel_size,
         #                     vis_point_range=vis_point_range, boxes=boxes[0].tensor.detach().cpu().numpy())
-        # import pdb;pdb.set_trace()
         return segmask_maps
 
     def generate_gaussion_heatmap(self, heatmap_size, coors_gpu, segmask_maps, scale=2):

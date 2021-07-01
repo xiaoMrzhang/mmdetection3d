@@ -1,5 +1,3 @@
-"""Second FPN with Residual attention"""
-
 import numpy as np
 import torch
 from mmcv.cnn import (build_conv_layer, build_norm_layer, build_upsample_layer,
@@ -12,7 +10,7 @@ from mmdet.models import NECKS
 
 
 @NECKS.register_module()
-class SECONDFPN_RAN(nn.Module):
+class SECONDFPNMASK(nn.Module):
     """FPN used in SECOND/PointPillars/PartA2/MVXNet.
 
     Args:
@@ -36,14 +34,13 @@ class SECONDFPN_RAN(nn.Module):
                  use_conv_for_no_stride=False):
         # if for GroupNorm,
         # cfg is dict(type='GN', num_groups=num_groups, eps=1e-3, affine=True)
-        super(SECONDFPN_RAN, self).__init__()
+        super(SECONDFPNMASK, self).__init__()
         assert len(out_channels) == len(upsample_strides) == len(in_channels)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.fp16_enabled = False
 
         deblocks = []
-        spitals = []
         channel_blocks = []
         for i, out_channel in enumerate(out_channels):
             stride = upsample_strides[i]
@@ -54,21 +51,10 @@ class SECONDFPN_RAN(nn.Module):
                     out_channels=out_channel,
                     kernel_size=upsample_strides[i],
                     stride=upsample_strides[i])
-                conv_1 = build_upsample_layer(
-                    upsample_cfg,
-                    in_channels=in_channels[i],
-                    out_channels=out_channel,
-                    kernel_size=upsample_strides[i],
-                    stride=upsample_strides[i])
+
             else:
                 stride = np.round(1 / stride).astype(np.int64)
                 upsample_layer = build_conv_layer(
-                    conv_cfg,
-                    in_channels=in_channels[i],
-                    out_channels=out_channel,
-                    kernel_size=stride,
-                    stride=stride)
-                conv_1 = build_conv_layer(
                     conv_cfg,
                     in_channels=in_channels[i],
                     out_channels=out_channel,
@@ -80,20 +66,20 @@ class SECONDFPN_RAN(nn.Module):
                                     nn.ReLU(inplace=True))
             deblocks.append(deblock)
 
-            conv_2 = build_conv_layer(conv_cfg, in_channels=out_channel, out_channels=out_channel,
+            conv_1 = build_conv_layer(conv_cfg, in_channels=out_channel, out_channels=out_channel,
                                       kernel_size=1, stride=1)
-            spital = nn.Sequential(conv_1, build_norm_layer(norm_cfg, out_channel)[1], nn.ReLU(inplace=True),
-                                  conv_2, nn.Sigmoid())
-            # [64, 64, 128]
-            conv_c = build_conv_layer(conv_cfg, in_channels=in_channels[i], out_channels=out_channel,
-                                      kernel_size=1, stride=1)
-            channel_layer = nn.Sequential(conv_c, nn.Sigmoid())
-            spitals.append(spital)
-            channel_blocks.append(channel_layer)
-
+           
         self.deblocks = nn.ModuleList(deblocks)
-        self.spitals = nn.ModuleList(spitals)
-        self.channel_blocks = nn.ModuleList(channel_blocks)
+        self.binary_cls = nn.Sequential(
+            build_conv_layer(conv_cfg, sum(out_channels), sum(out_channels), 3, padding=1),
+            build_norm_layer(norm_cfg, sum(out_channels))[1],
+            nn.ReLU(inplace=True),
+            build_conv_layer(conv_cfg, sum(out_channels), sum(out_channels), 1, 1),
+            nn.ReLU(inplace=True),
+            build_conv_layer(conv_cfg, sum(out_channels), 1, 1),
+            nn.Sigmoid()
+        )
+
 
     def init_weights(self):
         """Initialize weights of FPN."""
@@ -115,28 +101,11 @@ class SECONDFPN_RAN(nn.Module):
         """
         assert len(x) == len(self.in_channels)
         ups = [deblock(x[i]) for i, deblock in enumerate(self.deblocks)]
-        if seg_mask is None:
-            ras = [spital(x[i]) for i, spital in enumerate(self.spitals)]
-        elif len(seg_mask) == 3:
-            # ras = [spital(seg_mask[i]) for i, spital in enumerate(self.spitals)]
-            ras = [seg_mask[0],
-                   F.interpolate(seg_mask[1], scale_factor=2, mode='bilinear'),
-                   F.interpolate(seg_mask[2], scale_factor=4, mode='bilinear')]
-            ras = [channel_block(ras[i]) for i, channel_block in enumerate(self.channel_blocks)]
-        else:
-            if isinstance(seg_mask, np.ndarray):
-                seg_mask = torch.from_numpy(seg_mask).to(x[0].device).float()
-                seg_mask = seg_mask.unsqueeze(1)
-            if seg_mask.size(2) != ups[0].size(2):
-                scale_factor = ups[0].size(2) / seg_mask.size(2)
-                ras = [F.interpolate(seg_mask, scale_factor=scale_factor, mode='bilinear')]
-            else:
-                ras = [seg_mask]
+
         if len(ups) > 1:
             out = torch.cat(ups, dim=1)
-            att = torch.cat(ras, dim=1)
         else:
             out = ups[0]
-            att = ras[0]
-        out = torch.mul(out, att) + out
-        return [out]
+
+        mask = self.binary_cls(out)
+        return tuple([[out], [mask]])

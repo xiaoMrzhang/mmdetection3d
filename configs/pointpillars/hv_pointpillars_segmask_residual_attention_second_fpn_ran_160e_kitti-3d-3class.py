@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/models/hv_pointpillars_residual_attention_second_fpn_ran_kitti.py',
+    '../_base_/models/hv_pointpillars_pillar_supervise_second_kitti.py',
     '../_base_/datasets/kitti-3d-3class.py',
     '../_base_/schedules/cyclic_40e.py', '../_base_/default_runtime.py'
 ]
@@ -70,7 +70,7 @@ data = dict(
     train=dict(dataset=dict(pipeline=train_pipeline, classes=class_names)),
     val=dict(pipeline=test_pipeline, classes=class_names),
     test=dict(pipeline=test_pipeline, classes=class_names),
-    samples_per_gpu=16)
+    samples_per_gpu=12)
 
 # In practice PointPillars also uses a different schedule
 # optimizer

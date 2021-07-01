@@ -2,14 +2,13 @@ from mmcv.cnn import build_conv_layer, build_norm_layer
 from mmcv.runner import load_checkpoint, force_fp32
 from torch import nn as nn
 import torch
-import numpy as np
 
 from mmdet.models import BACKBONES
-from mmdet3d.utils.soft_mask import SoftMask
+
 
 @BACKBONES.register_module()
-class SECOND_RAN(nn.Module):
-    """Backbone network for SECOND with residual attention network
+class SECONDMASK(nn.Module):
+    """Backbone network for SECOND/PointPillars/PartA2/MVXNet.
 
     Args:
         in_channels (int): Input channels.
@@ -27,7 +26,7 @@ class SECOND_RAN(nn.Module):
                  layer_strides=[2, 2, 2],
                  norm_cfg=dict(type='BN', eps=1e-3, momentum=0.01),
                  conv_cfg=dict(type='Conv2d', bias=False)):
-        super(SECOND_RAN, self).__init__()
+        super(SECONDMASK, self).__init__()
         assert len(layer_strides) == len(layer_nums)
         assert len(out_channels) == len(layer_nums)
 
@@ -35,6 +34,7 @@ class SECOND_RAN(nn.Module):
         # note that when stride > 1, conv2d with same padding isn't
         # equal to pad-conv2d. we should use pad-conv2d.
         blocks = []
+        softmasks = []
         for i, layer_num in enumerate(layer_nums):
             block = [
                 build_conv_layer(
@@ -47,6 +47,23 @@ class SECOND_RAN(nn.Module):
                 build_norm_layer(norm_cfg, out_channels[i])[1],
                 nn.ReLU(inplace=True),
             ]
+
+            ras = [
+                build_conv_layer(conv_cfg, in_filters[i], out_channels[i],
+                                 3, stride=layer_strides[i], padding=1),
+                build_norm_layer(norm_cfg, out_channels[i])[1],
+                nn.ReLU(inplace=True),
+                build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
+                build_norm_layer(norm_cfg, out_channels[i])[1],
+                nn.ReLU(inplace=True),
+                build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
+                build_norm_layer(norm_cfg, out_channels[i])[1],
+                nn.ReLU(inplace=True),
+                build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
+                build_norm_layer(norm_cfg, out_channels[i])[1],
+                nn.Sigmoid()
+            ]
+
             for j in range(layer_num):
                 block.append(
                     build_conv_layer(
@@ -61,19 +78,18 @@ class SECOND_RAN(nn.Module):
             block = nn.Sequential(*block)
             blocks.append(block)
 
-        self.blocks = nn.ModuleList(blocks)
+            ras = nn.Sequential(*ras)
+            softmasks.append(ras)
 
-        first_layer_conv = build_conv_layer(
-                conv_cfg,
-                in_filters[0],
-                out_channels[0],
-                3,
-                stride=2,
-                padding=1)
-        first_bn = build_norm_layer(norm_cfg, out_channels[0])[1]
-        first_relu = nn.ReLU(inplace=True)
-        soft_mask = SoftMask(in_channels, [128, 128, 128], out_type=4)
-        self.soft_mask_block = nn.Sequential(first_layer_conv, first_bn, first_relu, soft_mask)
+        self.binary_cls = nn.Sequential(
+            nn.Conv2d(out_channels[-1], out_channels[-1], kernel_size=1, stride=1, bias = False),
+            nn.BatchNorm2d(out_channels[-1]),
+            nn.ReLU(inplace=False),
+            nn.Conv2d(out_channels[-1], 1, kernel_size=1, stride=1, bias = False),
+            nn.Sigmoid()
+        )
+        self.blocks = nn.ModuleList(blocks)
+        self.softmasks = nn.ModuleList(softmasks)
 
     def init_weights(self, pretrained=None):
         """Initialize weights of the 2D backbone."""
@@ -93,20 +109,20 @@ class SECOND_RAN(nn.Module):
         Returns:
             tuple[torch.Tensor]: Multi-scale features.
         """
-        masks = self.soft_mask_block(x)
         outs = []
         for i in range(len(self.blocks)):
+            mask = self.softmasks[i](x)
             x = self.blocks[i](x)
-            # x = torch.mul(x, masks[i]) + x
+            x = torch.mul(x, mask) + x
             outs.append(x)
-        return tuple([outs, masks])
+        # masks = [self.binary_cls(outs[-1]), outs[0], outs[1], outs[2]]
+        return tuple([outs, None])
 
     @force_fp32(apply_to=('prediction'))
     def focal_loss(self, prediction, target):
         loss_dict = dict()
         self.alpha = 2
         self.beta = 4
-
         positive_index = target.eq(1).float()
         negative_index = target.lt(1).float()
         negative_weights = torch.pow(1 - target, self.beta)
@@ -134,28 +150,5 @@ class SECOND_RAN(nn.Module):
         # loss_dict["loss_dice"] = dice_loss * 0.2
         # if torch.isnan(loss) or torch.isnan(dice_loss):
         #     import pdb;pdb.set_trace()
-
-        return loss_dict
-
-    @force_fp32(apply_to=('prediction'))
-    def loss(self, prediction, target):
-        positive_index = target.eq(1).float()
-        loss = 0.
-        loss_dict = dict()
-
-        positive_loss = torch.log(prediction + 1e-6) * positive_index
-        negative_loss = torch.log(1 - prediction + 1e-6) * (1 - positive_index)
-        num_positive = positive_index.float().sum()
-        num_negative = (1 - positive_index).float().sum()
-        positive_loss = positive_loss.sum()
-        negative_loss = negative_loss.sum()
-
-        bec_loss = -(positive_loss / (num_positive+1) + negative_loss / (num_negative+1))
-        loss_dict["loss_heatmap"] = bec_loss
-
-        # intersection = (target * prediction).sum(axis=[1,2,3])
-        # dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
-        # dice_loss = 1 - dice_score.mean()
-        # loss_dict["loss_dice"] = dice_loss
 
         return loss_dict
