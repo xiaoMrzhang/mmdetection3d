@@ -1,0 +1,44 @@
+python tools/train.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_mask_waymo-3d-3class.py --work-dir work_dirs/hv_pointpillars_second_fpn_pillar_supervise_160e_kitti-3d-3class/ --resume-from work_dirs/hv_pointpillars_second_fpn_pillar_supervise_160e_kitti-3d-3class/epoch_1.pth
+
+python tools/test.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_mask_waymo-3d-3class.py work_dirs/hv_pointpillars_second_fpn_pillar_supervise_160e_kitti-3d-3class/epoch_1.pth --eval waymo
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\datedsubsection{\textbf{京东集团-京东数字科技}  {}}{2018年12月 -- 2019年1月}
+\role{实习}{算法工程师}
+\begin{itemize}
+  \item 利用Faster-RCNN对身份证关键位置进行检测（id, 姓名, 出生日期），获取检测 结果（IoU区域）；
+  \item 利用CRNN网络对IoU区域的信息进行识别，输出对应的身份证id以及姓名等。
+\end{itemize}

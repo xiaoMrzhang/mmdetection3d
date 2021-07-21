@@ -12,11 +12,13 @@ model = dict(
         voxel_size=voxel_size,
         max_voxels=(32000, 32000)),
     voxel_encoder=dict(
-        type='PillarFeatureNet',
+        type='HardVFE',
         in_channels=5,
         feat_channels=[64],
         with_distance=False,
         voxel_size=voxel_size,
+        with_cluster_center=True,
+        with_voxel_center=True,
         point_cloud_range=[-74.88, -74.88, -2, 74.88, 74.88, 4]),
     middle_encoder=dict(
         type='PointPillarsScatter', in_channels=64, output_shape=[468, 468]),

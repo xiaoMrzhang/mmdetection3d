@@ -53,12 +53,12 @@ class SECONDMASK(nn.Module):
                                  3, stride=layer_strides[i], padding=1),
                 build_norm_layer(norm_cfg, out_channels[i])[1],
                 nn.ReLU(inplace=True),
-                build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
-                build_norm_layer(norm_cfg, out_channels[i])[1],
-                nn.ReLU(inplace=True),
-                build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
-                build_norm_layer(norm_cfg, out_channels[i])[1],
-                nn.ReLU(inplace=True),
+                # build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
+                # build_norm_layer(norm_cfg, out_channels[i])[1],
+                # nn.ReLU(inplace=True),
+                # build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
+                # build_norm_layer(norm_cfg, out_channels[i])[1],
+                # nn.ReLU(inplace=True),
                 build_conv_layer(conv_cfg, out_channels[i], out_channels[i], 3, padding=1),
                 build_norm_layer(norm_cfg, out_channels[i])[1],
                 nn.Sigmoid()
@@ -81,13 +81,13 @@ class SECONDMASK(nn.Module):
             ras = nn.Sequential(*ras)
             softmasks.append(ras)
 
-        self.binary_cls = nn.Sequential(
-            nn.Conv2d(out_channels[-1], out_channels[-1], kernel_size=1, stride=1, bias = False),
-            nn.BatchNorm2d(out_channels[-1]),
-            nn.ReLU(inplace=False),
-            nn.Conv2d(out_channels[-1], 1, kernel_size=1, stride=1, bias = False),
-            nn.Sigmoid()
-        )
+        # self.binary_cls = nn.Sequential(
+        #     nn.Conv2d(out_channels[-1], out_channels[-1], kernel_size=1, stride=1, bias = False),
+        #     nn.BatchNorm2d(out_channels[-1]),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(out_channels[-1], 1, kernel_size=1, stride=1, bias = False),
+        #     nn.Sigmoid()
+        # )
         self.blocks = nn.ModuleList(blocks)
         self.softmasks = nn.ModuleList(softmasks)
 
@@ -116,7 +116,8 @@ class SECONDMASK(nn.Module):
             x = torch.mul(x, mask) + x
             outs.append(x)
         # masks = [self.binary_cls(outs[-1]), outs[0], outs[1], outs[2]]
-        return tuple([outs, None])
+        # return tuple([outs, None])
+        return tuple(outs)
 
     @force_fp32(apply_to=('prediction'))
     def focal_loss(self, prediction, target):

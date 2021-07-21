@@ -381,7 +381,7 @@ class WaymoDataset(KittiDataset):
             annos = []
             info = self.data_infos[idx]
             sample_idx = info['image']['image_idx']
-            image_shape = info['image']['image_shape'][:2]
+            # image_shape = info['image']['image_shape'][:2]
 
             box_dict = self.convert_valid_bboxes(pred_dicts, info)
             if len(box_dict['bbox']) > 0:
@@ -406,7 +406,7 @@ class WaymoDataset(KittiDataset):
                 for box, box_lidar, bbox, score, label in zip(
                         box_preds, box_preds_lidar, box_2d_preds, scores,
                         label_preds):
-                    bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
+                    # bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
                     bbox[:2] = np.maximum(bbox[:2], [0, 0])
                     anno['name'].append(class_names[int(label)])
                     anno['truncated'].append(0.0)
@@ -463,6 +463,7 @@ class WaymoDataset(KittiDataset):
             if not pklfile_prefix.endswith(('.pkl', '.pickle')):
                 out = f'{pklfile_prefix}.pkl'
             mmcv.dump(det_annos, out)
+            mmcv.dump(det_annos, "work_dirs/hv_pointpillars_second_fpn_pillar_supervise_160e_kitti-3d-3class/result_kitti.pkl")
             print(f'Result is saved to {out}.')
 
         return det_annos

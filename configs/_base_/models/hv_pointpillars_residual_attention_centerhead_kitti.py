@@ -16,13 +16,13 @@ model = dict(
     middle_encoder=dict(
         type='PointPillarsScatter', in_channels=64, output_shape=[496, 432]),
     backbone=dict(
-        type='SECOND_RAN',
+        type='SECONDMASK',
         in_channels=64,
         layer_nums=[3, 5, 5],
         layer_strides=[2, 2, 2],
         out_channels=[64, 128, 256]),
     neck=dict(
-        type='SECONDFPN_RAN',
+        type='SECONDFPNMASK',
         in_channels=[64, 128, 256],
         # upsample_strides=[1, 2, 4],
         upsample_strides=[0.5, 1, 2],

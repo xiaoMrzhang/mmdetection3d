@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from mmcv.cnn import (build_conv_layer, build_norm_layer, build_upsample_layer,
                       constant_init, is_norm, kaiming_init)
-from mmcv.runner import auto_fp16
+from mmcv.runner import auto_fp16, force_fp32
 from torch import nn as nn
 import torch.nn.functional as F
 
@@ -75,6 +75,7 @@ class SECONDFPNMASK(nn.Module):
             build_norm_layer(norm_cfg, sum(out_channels))[1],
             nn.ReLU(inplace=True),
             build_conv_layer(conv_cfg, sum(out_channels), sum(out_channels), 1, 1),
+            build_norm_layer(norm_cfg, sum(out_channels))[1],
             nn.ReLU(inplace=True),
             build_conv_layer(conv_cfg, sum(out_channels), 1, 1),
             nn.Sigmoid()
@@ -107,5 +108,42 @@ class SECONDFPNMASK(nn.Module):
         else:
             out = ups[0]
 
-        mask = self.binary_cls(out)
-        return tuple([[out], [mask]])
+        # mask = self.binary_cls(out)
+        # return tuple([[out], [mask]])
+        return [out]
+
+
+    @force_fp32(apply_to=('prediction'))
+    def focal_loss(self, prediction, target):
+        loss_dict = dict()
+        self.alpha = 2
+        self.beta = 4
+        positive_index = target.eq(1).float()
+        negative_index = target.lt(1).float()
+        negative_weights = torch.pow(1 - target, self.beta)
+        loss = 0.
+        # prediction = torch.clamp(prediction, 1e-3, .999)
+        positive_loss = torch.log(prediction + 1e-6) \
+                        * torch.pow(1 - prediction, self.alpha) * positive_index
+        negative_loss = torch.log(1 - prediction + 1e-6) \
+                        * torch.pow(prediction, self.alpha) * negative_weights * negative_index
+
+        num_positive = positive_index.float().sum()
+        positive_loss = positive_loss.sum()
+        negative_loss = negative_loss.sum()
+
+        if num_positive == 0:
+            loss -= negative_loss
+        else:
+            loss -= (positive_loss + negative_loss) / num_positive
+        loss_dict["loss_heatmap"] = loss
+
+        # dice loss
+        # intersection = (target * prediction).sum(axis=[1,2,3])
+        # dice_score = (2 * intersection + 1) / (target.sum(axis=[1,2,3]) + prediction.sum(axis=[1,2,3]) + 1)
+        # dice_loss = 1 - torch.mean(dice_score, axis=0)
+        # loss_dict["loss_dice"] = dice_loss * 0.2
+        # if torch.isnan(loss) or torch.isnan(dice_loss):
+        #     import pdb;pdb.set_trace()
+
+        return loss_dict

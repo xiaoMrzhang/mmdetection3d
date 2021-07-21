@@ -21,7 +21,7 @@ def main():
     # test a single image
     result, data = inference_detector(model, args.pcd)
     # show the results
-    show_result_meshlab(data, result, args.out_dir, args.score_thr)
+    # show_result_meshlab(data, result, args.out_dir, args.score_thr)
 
 
 if __name__ == '__main__':

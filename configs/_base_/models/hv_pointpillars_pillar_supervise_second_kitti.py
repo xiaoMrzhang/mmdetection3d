@@ -1,3 +1,8 @@
+#
+#
+#
+#
+#
 voxel_size = [0.16, 0.16, 4]
 model = dict(
     type='VoxelNetPillar',

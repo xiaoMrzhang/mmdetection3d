@@ -41,20 +41,41 @@ class VoxelNetPillar(SingleStage3DDetector):
 
     def extract_feat(self, points, img_metas, gt_bboxes_3d=None):
         """Extract features from points."""
+        masks = None
         voxels, num_points, coors = self.voxelize(points)
         voxel_features = self.voxel_encoder(voxels, num_points, coors)
+
+        # fake_voxels = torch.ones([32000, 20, 5],dtype=torch.float32).cuda()
+        # fale_num_points = torch.ones([32000],dtype=torch.float32).cuda()
+        # fake_coors = torch.ones([32000, 5],dtype=torch.float32).cuda()
+        # pts_voxel_encoder = torch.jit.trace(self.voxel_encoder, (fake_voxels, fale_num_points, fake_coors))
+        # pts_voxel_encoder.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_voxel_encoder.zip")
+
         batch_size = coors[-1, 0].item() + 1
         x = self.middle_encoder(voxel_features, coors, batch_size)
-        x, masks = self.backbone(x)
+        # fake_batch_size = torch.tensor(1)
+        # pts_middle_encoder = torch.jit.trace(self.middle_encoder, (voxel_features, coors, fake_batch_size))
+        # pts_middle_encoder.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_middle_encoder.zip")
+
+        # pts_backbone = torch.jit.trace(self.backbone, x)
+        # pts_backbone.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_backbone.zip")
+        x = self.backbone(x)
 
         if self.with_neck:
-            x, masks = self.neck(x)
+            # pts_neck = torch.jit.trace(self.neck, [x])
+            # pts_neck.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_neck.zip")
+            x = self.neck(x)
 
         if gt_bboxes_3d is not None and masks is not None:
             # self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors, segmask_maps)
-            scale = 496 // masks[0].size(2)
-            segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
-                                    vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+            # scale = 496 // masks[0].size(2)
+            # segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+            #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+            #                         boxes=gt_bboxes_3d, scale=scale)
+            # import pdb;pdb.set_trace()
+            scale = 468 // masks[0].size(2)
+            segmask_maps = self.generate_mask(points, vis_voxel_size=[0.32, 0.32, 6],
+                                    vis_point_range=[-74.24, -74.24, -2, 74.24, 74.24, 4],
                                     boxes=gt_bboxes_3d, scale=scale)
             gaussian = self.gaussian_2d((2 * 6 + 1, 2 * 6 + 1), sigma=6/6)
             self.heatmap = generate_gaussion_heatmap_array(np.array(masks[0].size()),
@@ -105,7 +126,8 @@ class VoxelNetPillar(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        x, masks = self.extract_feat(points, img_metas, gt_bboxes_3d=gt_bboxes_3d)
+        # x, masks = self.extract_feat(points, img_metas, gt_bboxes_3d=gt_bboxes_3d)
+        x, masks = self.extract_feat(points, img_metas)
         if self.heatmap is not None:
             heatmap_seg = self.heatmap.to(x[0].device).unsqueeze(1)
         else:
@@ -117,7 +139,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         # loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
         # losses = self.bbox_head.loss(*loss_inputs)
-        if masks is not None:
+        if masks is not None and heatmap_seg is not None:
             hm_loss = self.backbone.focal_loss(masks[0], heatmap_seg)
             losses.update(hm_loss)
         if np.random.rand() > 1:
@@ -137,6 +159,9 @@ class VoxelNetPillar(SingleStage3DDetector):
         #                         boxes=gt_bboxes_3d)
         x, masks = self.extract_feat(points, img_metas)
         outs = self.bbox_head(x)
+        # traced_script_module = torch.jit.trace(self.bbox_head, [x])
+        # traced_script_module.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_bbox_head.zip")
+
         bbox_list = self.bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
         bbox_results = [
