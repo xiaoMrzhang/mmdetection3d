@@ -145,11 +145,14 @@ class Anchor3DHead(nn.Module, AnchorTrainMixin):
             tuple[torch.Tensor]: Contain score of each class, bbox \
                 regression and direction classification predictions.
         """
+        # cls_score = self.conv_cls(x).permute(0,2,3,1).contiguous()
+        # bbox_pred = self.conv_reg(x).permute(0,2,3,1).contiguous()
         cls_score = self.conv_cls(x)
         bbox_pred = self.conv_reg(x)
         dir_cls_preds = None
         if self.use_direction_classifier:
             dir_cls_preds = self.conv_dir_cls(x)
+            # dir_cls_preds = self.conv_dir_cls(x).permute(0,2,3,1).contiguous()
         return cls_score, bbox_pred, dir_cls_preds
 
     def forward(self, feats):
@@ -163,6 +166,7 @@ class Anchor3DHead(nn.Module, AnchorTrainMixin):
             tuple[list[torch.Tensor]]: Multi-level class score, bbox \
                 and direction predictions.
         """
+        # return self.forward_single(feats[0])
         return multi_apply(self.forward_single, feats)
 
     def get_anchors(self, featmap_sizes, input_metas, device='cuda'):

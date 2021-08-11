@@ -64,7 +64,7 @@ class VoxelNetPillar(SingleStage3DDetector):
         if self.with_neck:
             # pts_neck = torch.jit.trace(self.neck, [x])
             # pts_neck.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_neck.zip")
-            x = self.neck(x)
+            x, masks = self.neck(x)
 
         if gt_bboxes_3d is not None and masks is not None:
             # self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors, segmask_maps)
@@ -75,7 +75,7 @@ class VoxelNetPillar(SingleStage3DDetector):
             # import pdb;pdb.set_trace()
             scale = 468 // masks[0].size(2)
             segmask_maps = self.generate_mask(points, vis_voxel_size=[0.32, 0.32, 6],
-                                    vis_point_range=[-74.24, -74.24, -2, 74.24, 74.24, 4],
+                                    vis_point_range=[-74.88, -74.88, -2, 74.88, 74.88, 4],
                                     boxes=gt_bboxes_3d, scale=scale)
             gaussian = self.gaussian_2d((2 * 6 + 1, 2 * 6 + 1), sigma=6/6)
             self.heatmap = generate_gaussion_heatmap_array(np.array(masks[0].size()),
@@ -126,8 +126,8 @@ class VoxelNetPillar(SingleStage3DDetector):
         Returns:
             dict: Losses of each branch.
         """
-        # x, masks = self.extract_feat(points, img_metas, gt_bboxes_3d=gt_bboxes_3d)
-        x, masks = self.extract_feat(points, img_metas)
+        x, masks = self.extract_feat(points, img_metas, gt_bboxes_3d=gt_bboxes_3d)
+        # x, masks = self.extract_feat(points, img_metas)
         if self.heatmap is not None:
             heatmap_seg = self.heatmap.to(x[0].device).unsqueeze(1)
         else:
@@ -209,8 +209,8 @@ class VoxelNetPillar(SingleStage3DDetector):
         """
         if boxes is None:
             return None
-        w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1])
-        h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0])
+        w = int((vis_point_range[4] - vis_point_range[1]) / vis_voxel_size[1] + 0.5)
+        h = int((vis_point_range[3] - vis_point_range[0]) / vis_voxel_size[0] + 0.5)
         segmask_maps = np.zeros((len(points), int(w/scale), int(h/scale)))
         for i in range(segmask_maps.shape[0]):
             vis_point_range = np.array(vis_point_range)
@@ -322,6 +322,7 @@ def generate_gaussion_heatmap_array(heatmap_size, coors, segmask_maps, gaussian,
         if segmask_maps[batch_idx, center[1], center[0]] == 0:
             continue
         draw_heatmap_gaussian_array(heatmap[batch_idx], center, radius, gaussian)
+    # import pdb;pdb.set_trace()
     # cv2.imwrite("/home/zhangxiao/test_2.png", (heatmap[1] * 255).astype(np.uint8))
     # cv2.imwrite("/home/zhangxiao/test_1.png", (segmask_maps[3] * 255).astype(np.uint8))
     # cv2.imwrite("/home/zhangxiao/test_3.png", (segmask_maps[3] * heatmap[3] * 255).astype(np.uint8))

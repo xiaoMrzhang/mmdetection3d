@@ -194,10 +194,25 @@ class MVXTwoStageDetector(Base3DDetector):
         voxels, num_points, coors = self.voxelize(pts)
         voxel_features = self.pts_voxel_encoder(voxels, num_points, coors,
                                                 img_feats, img_metas)
+
+        # fake_voxels = torch.ones([32000, 20, 5],dtype=torch.float32).cuda()
+        # fale_num_points = torch.ones([32000],dtype=torch.float32).cuda()
+        # fake_coors = torch.ones([32000, 5],dtype=torch.float32).cuda()
+        # pts_voxel_encoder = torch.jit.trace(self.pts_voxel_encoder, (fake_voxels, fale_num_points, fake_coors))
+        # pts_voxel_encoder.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_voxel_encoder.zip")
+                                      
         batch_size = coors[-1, 0] + 1
         x = self.pts_middle_encoder(voxel_features, coors, batch_size)
+        # fake_batch_size = torch.tensor(1)
+        # pts_middle_encoder = torch.jit.trace(self.pts_middle_encoder, (voxel_features, coors, fake_batch_size))
+        # pts_middle_encoder.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_middle_encoder.zip")
+
+        # pts_backbone = torch.jit.trace(self.pts_backbone, x)
+        # pts_backbone.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_backbone.zip")
         x = self.pts_backbone(x)
         if self.with_pts_neck:
+            # pts_neck = torch.jit.trace(self.pts_neck, [x])
+            # pts_neck.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_neck.zip")
             x = self.pts_neck(x)
         return x
 
@@ -390,6 +405,8 @@ class MVXTwoStageDetector(Base3DDetector):
     def simple_test_pts(self, x, img_metas, rescale=False):
         """Test function of point cloud branch."""
         outs = self.pts_bbox_head(x)
+        # traced_script_module = torch.jit.trace(self.pts_bbox_head, [x])
+        # traced_script_module.save("/home/zhangxiao/code/mmdetection3d/work_dirs/save_path/pts_bbox_head.zip")
         bbox_list = self.pts_bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
         bbox_results = [

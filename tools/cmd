@@ -5,9 +5,8 @@ python tools/test.py configs/pointpillars/hv_pointpillars_segmask_residual_atten
 
 
 
-
-
-
+python tools/train.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_mask_waymo-3d-3class.py --work-dir work_dirs/hv_pointpillars_second_fpn_pillar_supervise_24e_waymo-3d-3class/ --resume work_dirs/hv_pointpillars_second_fpn_pillar_supervise_24e_waymo-3d-3class/latest.pth
+python tools/test.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_mask_waymo-3d-3class.py work_dirs/hv_pointpillars_second_fpn_pillar_supervise_24e_waymo-3d-3class/latest.pth --eval kitti
 
 
 

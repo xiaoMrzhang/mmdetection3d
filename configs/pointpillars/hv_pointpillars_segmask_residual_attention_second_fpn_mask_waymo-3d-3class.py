@@ -7,5 +7,5 @@ _base_ = [
 
 # data settings
 data = dict(train=dict(dataset=dict(load_interval=5)),
-            test=dict(load_interval=10),
+            test=dict(load_interval=1),
             samples_per_gpu=4)

@@ -407,6 +407,7 @@ class WaymoDataset(KittiDataset):
                         box_preds, box_preds_lidar, box_2d_preds, scores,
                         label_preds):
                     # bbox[2:] = np.minimum(bbox[2:], image_shape[::-1])
+                    # bbox[2:] = np.minimum(bbox[2:], (1280, 1920))
                     bbox[:2] = np.maximum(bbox[:2], [0, 0])
                     anno['name'].append(class_names[int(label)])
                     anno['truncated'].append(0.0)

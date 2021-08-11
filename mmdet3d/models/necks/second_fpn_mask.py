@@ -71,13 +71,13 @@ class SECONDFPNMASK(nn.Module):
            
         self.deblocks = nn.ModuleList(deblocks)
         self.binary_cls = nn.Sequential(
-            build_conv_layer(conv_cfg, sum(out_channels), sum(out_channels), 3, padding=1),
-            build_norm_layer(norm_cfg, sum(out_channels))[1],
+            build_conv_layer(conv_cfg, sum(out_channels), out_channels[0], 3, padding=1),
+            build_norm_layer(norm_cfg, out_channels[0])[1],
             nn.ReLU(inplace=True),
-            build_conv_layer(conv_cfg, sum(out_channels), sum(out_channels), 1, 1),
-            build_norm_layer(norm_cfg, sum(out_channels))[1],
+            build_conv_layer(conv_cfg, out_channels[0], out_channels[0], 1, 1),
+            build_norm_layer(norm_cfg, out_channels[0])[1],
             nn.ReLU(inplace=True),
-            build_conv_layer(conv_cfg, sum(out_channels), 1, 1),
+            build_conv_layer(conv_cfg, out_channels[0], 1, 1),
             nn.Sigmoid()
         )
 
@@ -108,9 +108,9 @@ class SECONDFPNMASK(nn.Module):
         else:
             out = ups[0]
 
-        # mask = self.binary_cls(out)
-        # return tuple([[out], [mask]])
-        return [out]
+        mask = self.binary_cls(out)
+        return tuple([[out], [mask]])
+        # return [out]
 
 
     @force_fp32(apply_to=('prediction'))
