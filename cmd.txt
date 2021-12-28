@@ -15,8 +15,35 @@ python tools/create_data.py kitti --root-path ./data/kitti --out-dir ./data/kitt
 
 
 - train
-python tools/train.py configs/pointpillars/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class.py --gpu-ids 0
-
+python tools/train.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_ran_160e_kitti-3d-3class --gpu-ids 0
+python tools/train.py configs/pointpillars/hv_pointpillars_segmask_residual_attention_second_fpn_mask_waymo-3d-3class.py --gpu-ids 0
 
 --eval
 python tools/test.py configs/pointpillars/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class.py work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/latest.pth  --out work_dirs/hv_pointpillars_anchorfree_6x8_160e_kitti-3d-3class/result.pkl --eval mAP
+
+
+{'Vehicle/L1 mAP': 0.667876, 'Vehicle/L1 mAPH': 0.661957, 'Vehicle/L2 mAP': 0.585219, 'Vehicle/L2 mAPH': 0.579953, 
+'Pedestrian/L1 mAP': 0.654278, 'Pedestrian/L1 mAPH': 0.502799, 'Pedestrian/L2 mAP': 0.574259, 'Pedestrian/L2 mAPH': 0.439938, 
+'Sign/L1 mAP': 0.0, 'Sign/L1 mAPH': 0.0, 'Sign/L2 mAP': 0.0, 'Sign/L2 mAPH': 0.0, 
+'Cyclist/L1 mAP': 0.564824, 'Cyclist/L1 mAPH': 0.538002, 'Cyclist/L2 mAP': 0.543254, 'Cyclist/L2 mAPH': 0.517457,
+'Overall/L1 mAP': 0.6289926666666666, 'Overall/L1 mAPH': 0.567586, 'Overall/L2 mAP': 0.5675773333333334, 'Overall/L2 mAPH': 0.5124493333333334}
+
+hv_pointpillars_secfpn_offical_waymoD5-3d-3class:
+{'Vehicle/L1 mAP': 0.684682, 'Vehicle/L1 mAPH': 0.678906, 'Vehicle/L2 mAP': 0.60088, 'Vehicle/L2 mAPH': 0.595743, 
+'Pedestrian/L1 mAP': 0.685344, 'Pedestrian/L1 mAPH': 0.53721, 'Pedestrian/L2 mAP': 0.608075, 'Pedestrian/L2 mAPH': 0.47459, 
+'Sign/L1 mAP': 0.0, 'Sign/L1 mAPH': 0.0, 'Sign/L2 mAP': 0.0, 'Sign/L2 mAPH': 0.0, 
+'Cyclist/L1 mAP': 0.584245, 'Cyclist/L1 mAPH': 0.559227, 'Cyclist/L2 mAP': 0.561976, 'Cyclist/L2 mAPH': 0.53791, 
+'Overall/L1 mAP': 0.6514236666666666, 'Overall/L1 mAPH': 0.591781, 'Overall/L2 mAP': 0.5903103333333334, 'Overall/L2 mAPH': 0.5360809999999999}
+
+work_dirs/hv_pointpillars_second_fpn_pillar_supervise_160e_kitti-3d-3class:
+{'Vehicle/L1 mAP': 0.678026, 'Vehicle/L1 mAPH': 0.672009, 'Vehicle/L2 mAP': 0.594678, 'Vehicle/L2 mAPH': 0.589329, 
+'Pedestrian/L1 mAP': 0.670313, 'Pedestrian/L1 mAPH': 0.514275, 'Pedestrian/L2 mAP': 0.589316, 'Pedestrian/L2 mAPH': 0.450708, 
+'Sign/L1 mAP': 0.0, 'Sign/L1 mAPH': 0.0, 'Sign/L2 mAP': 0.0, 'Sign/L2 mAPH': 0.0, 
+'Cyclist/L1 mAP': 0.58574, 'Cyclist/L1 mAPH': 0.558508, 'Cyclist/L2 mAP': 0.563243, 'Cyclist/L2 mAPH': 0.537061, 
+'Overall/L1 mAP': 0.6446930000000001, 'Overall/L1 mAPH': 0.5815973333333334, 'Overall/L2 mAP': 0.5824123333333334, 'Overall/L2 mAPH': 0.5256993333333333}
+
+{'Vehicle/L1 mAP': 0.633041, 'Vehicle/L1 mAPH': 0.625771, 'Vehicle/L2 mAP': 0.559457, 'Vehicle/L2 mAPH': 0.552835, 
+'Pedestrian/L1 mAP': 0.578366, 'Pedestrian/L1 mAPH': 0.395092, 'Pedestrian/L2 mAP': 0.50286, 'Pedestrian/L2 mAPH': 0.342892, 
+'Sign/L1 mAP': 0.0, 'Sign/L1 mAPH': 0.0, 'Sign/L2 mAP': 0.0, 'Sign/L2 mAPH': 0.0, 
+'Cyclist/L1 mAP': 0.444914, 'Cyclist/L1 mAPH': 0.394603, 'Cyclist/L2 mAP': 0.427698, 'Cyclist/L2 mAPH': 0.379344, 
+'Overall/L1 mAP': 0.552107, 'Overall/L1 mAPH': 0.47182199999999996, 'Overall/L2 mAP': 0.4966716666666667, 'Overall/L2 mAPH': 0.4250236666666667}

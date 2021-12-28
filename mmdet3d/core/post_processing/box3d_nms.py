@@ -2,7 +2,7 @@ import numba
 import numpy as np
 import torch
 
-from mmdet3d.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu
+from mmdet3d.ops.iou3d.iou3d_utils import nms_gpu, nms_normal_gpu, nms_weighted_gpu
 
 
 def box3d_multiclass_nms(mlvl_bboxes,
@@ -66,6 +66,13 @@ def box3d_multiclass_nms(mlvl_bboxes,
         _mlvl_bboxes = mlvl_bboxes[cls_inds, :]
         bboxes.append(_mlvl_bboxes[selected])
         scores.append(_scores[selected])
+
+        # _mlvl_bboxes = mlvl_bboxes[cls_inds, :]
+        # selected, keep_boxes, keep_scores = nms_weighted_gpu(_bboxes_for_nms, _scores, cfg.nms_thr, _mlvl_bboxes)
+        # bboxes.append(keep_boxes[selected])
+        # scores.append(keep_scores[selected])
+        # import pdb; pdb.set_trace()
+
         cls_label = mlvl_bboxes.new_full((len(selected), ),
                                          i,
                                          dtype=torch.long)

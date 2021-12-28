@@ -50,6 +50,50 @@ def nms_gpu(boxes, scores, thresh, pre_maxsize=None, post_max_size=None):
     return keep
 
 
+def nms_weighted_gpu(boxes, scores, thresh, det_boxes=None, pre_maxsize=None, post_max_size=None):
+    order = scores.sort(0, descending=True)[1]
+
+    if pre_maxsize is not None:
+        order = order[:pre_maxsize]
+    boxes = boxes[order].contiguous()
+    if det_boxes is not None:
+        det_boxes = det_boxes[order].contiguous()
+
+    keep_boxes = torch.zeros_like(boxes)
+    keep_det_boxes = torch.zeros_like(det_boxes)
+    keep_scores = torch.zeros_like(scores)
+    keep = torch.zeros(boxes.size(0), dtype=torch.long)
+    keep_pos = 0
+
+    while(boxes.size(0)):
+        ans_iou = boxes_iou_bev(boxes[0:1], boxes).squeeze(0)   #(1, N)
+        selected = ans_iou >= thresh
+        ###Hard code demo/1013044.bin
+        selected[0] = True
+        ###
+        weights = scores[selected] * ans_iou[selected]
+
+        boxes[0, :4] = (weights.unsqueeze(1) * boxes[selected, :4]).sum(0) / (weights.sum() + 1e-6)
+        keep_boxes[keep_pos] = boxes[0]
+
+        if det_boxes is not None:
+            det_boxes[0, :4] = (weights.unsqueeze(1) * det_boxes[selected, :4]).sum(0) / (weights.sum())
+            keep_det_boxes[keep_pos] = det_boxes[0]
+
+        keep_scores[keep_pos] = scores[0]
+        keep[keep_pos] = keep_pos
+        keep_pos += 1
+
+        boxes = boxes[~selected]
+        scores = scores[~selected]
+        det_boxes = det_boxes[~selected]
+    if post_max_size is not None:
+        keep_pos = min(keep_pos, post_max_size)
+    return keep[:keep_pos], keep_det_boxes, keep_scores
+    # selected = nms_gpu(boxes, scores, thresh, pre_maxsize=pre_maxsize, post_max_size=post_max_size)
+    # weighted_bboxs[:, :4] = (scores * ious * boxes[:, :4])
+    # weighted_bboxs = weighted_bboxs[selected]
+
 def nms_normal_gpu(boxes, scores, thresh):
     """Normal non maximum suppression on GPU.
 

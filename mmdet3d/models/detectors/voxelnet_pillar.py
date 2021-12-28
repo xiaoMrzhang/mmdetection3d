@@ -68,15 +68,17 @@ class VoxelNetPillar(SingleStage3DDetector):
 
         if gt_bboxes_3d is not None and masks is not None:
             # self.heatmap = self.generate_gaussion_heatmap(masks[0].size(), coors, segmask_maps)
-            # scale = 496 // masks[0].size(2)
-            # segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
-            #                         vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
-            #                         boxes=gt_bboxes_3d, scale=scale)
-            # import pdb;pdb.set_trace()
-            scale = 468 // masks[0].size(2)
-            segmask_maps = self.generate_mask(points, vis_voxel_size=[0.32, 0.32, 6],
-                                    vis_point_range=[-74.88, -74.88, -2, 74.88, 74.88, 4],
-                                    boxes=gt_bboxes_3d, scale=scale)
+            import pdb;pdb.set_trace()
+            if 496 % masks[0] == 0:
+                scale = 496 // masks[0].size(2)
+                segmask_maps = self.generate_mask(points, vis_voxel_size=[0.16, 0.16, 4],
+                                        vis_point_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                                        boxes=gt_bboxes_3d, scale=scale)
+            else:
+                scale = 468 // masks[0].size(2)
+                segmask_maps = self.generate_mask(points, vis_voxel_size=[0.32, 0.32, 6],
+                                        vis_point_range=[-74.88, -74.88, -2, 74.88, 74.88, 4],
+                                        boxes=gt_bboxes_3d, scale=scale)
             gaussian = self.gaussian_2d((2 * 6 + 1, 2 * 6 + 1), sigma=6/6)
             self.heatmap = generate_gaussion_heatmap_array(np.array(masks[0].size()),
                                                             coors.cpu().numpy(),
